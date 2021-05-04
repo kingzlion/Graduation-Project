@@ -1,0 +1,21 @@
+.mapbox-right {
+    position: absolute;
+    right: 80px;
+    bottom: 100px;
+    background: rgba(114,164,205,.8);
+    border-radius: 10px;
+    z-index: 99999;
+width: 150px;
+height: 150px;
+}
+
+.legendcolor {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+}
+
+.lengedname {
+    font-size: 18px;
+    color: #fff;
+}

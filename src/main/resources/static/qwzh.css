@@ -1,0 +1,172 @@
+dl {
+    bottom: 355px;
+    right: 62px;
+    width: 300px;
+    margin: auto;
+    height: 200px;
+    z-index: 9999;
+    width: 300px;
+    z-index: 1111;
+    position: absolute;
+}
+
+dl,
+dd {
+    margin: 0;
+}
+
+dt {
+    background-color: #252b33;
+    font-size: 16px;
+    padding: 5px 5px 5px 5px;
+    margin-top: 10px;
+    height: 38px;
+    border-radius: 5px;
+    text-align: center;
+    line-height: 34px;
+    position: relative;
+}
+
+dt a {
+    color: #FFF;
+    text-decoration: none;
+}
+
+dd a {
+    color: #000;
+}
+
+dl ul {
+    list-style: none;
+    padding: 0px;
+    margin: 0px;
+    background-color: #fff;
+}
+
+dl li {
+    line-height: 36px;
+}
+
+dd {
+    display: none;
+    background: #ffffff;
+}
+
+.dd_first {
+    font-size: 14px;
+    text-indent: 28px;
+    line-height: 24px;
+    padding: 10px 20px;
+}
+
+.dd_sec span {
+    position: relative;
+    top: -2px;
+    font-size: 15px;
+}
+
+.dd_sec ul {
+    padding-left: 15px;
+}
+
+.bg {
+    background-position: 5px -16px;
+}
+
+iframe {
+    position: absolute;
+    width: 60%;
+    height: 20%;
+    z-index: 1111;
+    left: 380px;
+    top: 80%;
+}
+
+.tdt-label,
+.tdt-label0,
+.tdt-label1 {
+    border: 0!important;
+}
+
+#slideShow {
+    cursor: pointer;
+}
+
+.tdt-label.tdt-clickable {
+    color: red;
+    font-size: 17px;
+}
+
+dl em {
+    cursor: pointer;
+    color: #fff;
+    font-style: normal;
+}
+
+.container {
+    padding-left: 0!important;
+}
+
+dl em {
+    width: 100%;
+    display: inline-block;
+}
+
+.img_right {
+    position: absolute;
+    top: 17px;
+    left: 85px;
+}
+
+.img_left {
+    position: absolute;
+    top: 17px;
+    right: 85px;
+}
+
+.tdt-infowindow-tip-container {
+    display: none;
+}
+
+
+/*.tdt-fade-anim .tdt-infowindow{
+	width: 170px!important;
+	height: 78px;
+}
+.tdt-infowindow-content-wrapper, .tdt-infowindow-tip{
+	height: 78px!important;
+}*/
+
+.tdt-infowindow-content {
+    position: relative!important;
+}
+
+.tdt-infowindow-content:after {
+    content: '';
+    position: absolute;
+    height: 1px;
+    width: 100%;
+    top: 25px;
+    background-color: #E1E1E1;
+}
+
+input {
+    width: 16px;
+    height: 16px;
+}
+
+.jt_transform {
+    transform: rotate(90deg);
+}
+
+.div_checkbox {
+    background-color: rgb(255, 255, 0);
+}
+
+.div_checkbox1 {
+    background-color: rgb(255, 102, 0);
+}
+
+.div_checkbox2 {
+    background-color: rgb(255, 0, 0);
+}

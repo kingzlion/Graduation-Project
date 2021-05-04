@@ -1,0 +1,136 @@
+.verticr {
+    position: absolute;
+    bottom: 55px;
+    right: 11px;
+    margin: auto;
+    width: 500px;
+    z-index: 9999;
+}
+
+.ol-popup {
+    position: absolute;
+    background-color: white;
+    -webkit-filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.2));
+    filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.2));
+    border-radius: 10px;
+    border: 1px solid #cccccc;
+    bottom: 12px;
+    left: -50px;
+    width: 500px;
+    height: 240px;
+}
+
+.ol-popup:after,
+.ol-popup:before {
+    top: 100%;
+    border: solid transparent;
+    content: " ";
+    height: 0;
+    width: 0;
+    position: absolute;
+    pointer-events: none;
+}
+
+.ol-popup:after {
+    border-top-color: #eeeeee;
+    border-width: 10px;
+    left: 48px;
+    margin-left: -10px;
+}
+
+.ol-popup:before {
+    border-top-color: #cccccc;
+    border-width: 11px;
+    left: 48px;
+    margin-left: -11px;
+}
+
+.ol-popup-closer {
+    text-decoration: none;
+    position: absolute;
+    top: 2px;
+    right: 8px;
+}
+
+.ol-popup-closer:after {
+    content: "✖";
+}
+
+.ol-popup .popup-head {
+    height: 30px;
+    border: 1px solid;
+    background: rgb(62, 62, 71);
+    border-radius: 10px 10px 0 0;
+}
+
+.ol-popup .popup-head .popup-head-title {
+    font-size: 18px;
+    text-indent: 5px;
+    font-weight: 800;
+    color: white;
+}
+
+.ol-popup #popup-content {
+    height: 205px;
+    background: white;
+}
+
+.ol-popup #popup-content .popup-item {
+    height: 180px;
+    background: white;
+    display: flex;
+    justify-content: space-between;
+}
+
+.ol-popup #popup-content .popup-item img {
+    padding: 5px;
+    border-radius: 10%;
+}
+
+.ol-popup #popup-content .popup-item .item-text .item-name {
+    margin-top: 5px;
+}
+
+.ol-popup #popup-content .popup-item .item-text .item-content {
+    width: 320px;
+    font-size: 12px;
+    margin-top: 5px;
+}
+
+.ol-popup #popup-content .popup-item div.item-content {
+    width: 320px;
+}
+
+.ol-popup #popup-content .items {
+    padding: 0px;
+    margin: 0px;
+    margin-left: 15px;
+}
+
+.ol-popup #popup-content .item {
+    list-style: none;
+    font-size: 20px;
+    margin-top: 10px;
+    font-weight: 100;
+}
+
+.ol-popup #popup-content .item span {
+    margin-left: 15px;
+}
+
+.ol-popup #popup-content .btn-list {
+    display: flex;
+    justify-content: space-between;
+    padding: 0;
+    width: 90%;
+    margin: 0 auto;
+}
+
+.ol-popup #popup-content .btn-list li {
+    list-style: none;
+    width: 49.5%;
+}
+
+.ol-popup #popup-content .btn-list li button {
+    width: 100%;
+}

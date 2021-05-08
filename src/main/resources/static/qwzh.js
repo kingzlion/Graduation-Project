@@ -19,7 +19,6 @@ var quwei = new ol.layer.Tile({
 });
 //天地图注记
 var tian_di_tu_annotation = new ol.layer.Tile({
-    title: "地名标注",
     source: new ol.source.XYZ({
         url: 'http://t3.tianditu.com/DataServer?T=cva_w&x={x}&y={y}&l={z}&tk=c8f40527485d981d34c5369cb830104a',
         crossOrigin: "anonymous"
@@ -98,7 +97,7 @@ var tian_di_tu_annotation = new ol.layer.Tile({
             new ol.layer.Group({
                 title: 'Overlays',
                 layers: [
-                    quwei,tian_di_tu_annotation
+                    quwei
                 ]
             }),
             $vector
@@ -124,7 +123,7 @@ var tian_di_tu_annotation = new ol.layer.Tile({
 
 
     map.addControl(layerSwitcher);
-
+    map.addLayer(tian_di_tu_annotation);
     ///比例尺
     var scaleControl = new ol.control.ScaleLine();
     map.addControl(scaleControl);

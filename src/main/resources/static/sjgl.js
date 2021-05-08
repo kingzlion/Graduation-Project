@@ -10,7 +10,9 @@
     $("#fly1").click(function() {
         alert("抱歉，不支持！");
     });
-
+    $("#fly11").click(function() {
+        alert("账号或密码错误！");
+    });
 
 
 

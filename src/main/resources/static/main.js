@@ -60,12 +60,10 @@ var daolu = new ol.layer.Tile({
 
 //天地图注记
 var tian_di_tu_annotation = new ol.layer.Tile({
-    title: "地名标注",
     source: new ol.source.XYZ({
         url: 'http://t3.tianditu.com/DataServer?T=cva_w&x={x}&y={y}&l={z}&tk=c8f40527485d981d34c5369cb830104a',
         crossOrigin: 'anonymous'
     })
-
 });
 
 ///规划组团
@@ -215,7 +213,7 @@ var zu = new ol.layer.Tile({
             new ol.layer.Group({
                 title: 'Overlays',
                 layers: [
-                    wmscun, tian_di_tu_annotation
+                    wmscun
                 ]
             }),
             $vector
@@ -229,7 +227,7 @@ var zu = new ol.layer.Tile({
         view: new ol.View({
             projection: 'EPSG:3857',
             center: ol.proj.fromLonLat([115.907, 39.011]), //坐标转换
-            zoom: 11
+            zoom: 10.5
         })
 
     });
@@ -237,7 +235,7 @@ var zu = new ol.layer.Tile({
         tipLabel: 'Légende' // Optional label for button
     });
 
-
+    map.addLayer(tian_di_tu_annotation);
     map.addControl(layerSwitcher);
 
     ///比例尺

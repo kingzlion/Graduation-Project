@@ -227,7 +227,7 @@ var tian_di_tu_annotation = new ol.layer.Tile({
             new ol.layer.Group({
                 title: 'Overlays',
                 layers: [
-                    asfasf,zu, daolu, wmsc, wmscun, zu1, wmsqq,tian_di_tu_annotation
+                    asfasf,zu, daolu, wmsc, wmscun, zu1,tian_di_tu_annotation
                 ]
             }),
             $vector

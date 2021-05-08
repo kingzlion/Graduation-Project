@@ -15,7 +15,7 @@ var quwei = new ol.layer.Tile({
 
 
         params: {
-            LAYERS: "quwei",
+            LAYERS: "rwjg",
             TILED: true
         },
         // serverType: "iserver",
@@ -594,7 +594,7 @@ var tian_di_tu_annotation = new ol.layer.Tile({
                     _vector.setStyle(new ol.style.Style({
                         image: new ol.style.Icon({
                             // opacity: 0.75,
-                            src: "dist/img/markerred.png"
+                            src: "dist/img/ceshi.png"
                         })
                     }));
                     map.addOverlay(_overlay);
@@ -631,7 +631,7 @@ var tian_di_tu_annotation = new ol.layer.Tile({
         _vector.setStyle(new ol.style.Style({
             image: new ol.style.Icon({
                 // opacity: 0.75,
-                src: "dist/img/markerred.png"
+                src: "dist/img/ceshi.png"
             })
         }));
     });

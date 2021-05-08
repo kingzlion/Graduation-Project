@@ -10,7 +10,7 @@ var quwei = new ol.layer.Tile({
 
 
         params: {
-            LAYERS: "quwei",
+            LAYERS: "zdgc",
             TILED: true
         },
         // serverType: "iserver",
@@ -59,24 +59,6 @@ var tian_di_tu_annotation = new ol.layer.Tile({
                         })
                     }),
 
-                    new ol.layer.Tile({
-
-                        title: '遥感影像',
-                        type: 'base',
-                        visible: true,
-                        source: new ol.source.TileWMS({
-                            ratio: 1,
-                            params: { 'LAYERS': 'show:0' },
-                            url: "http://47.95.218.128:8090/iserver/services/map-XASP/wms130",
-                            params: {
-                                LAYERS: "rsmap",
-                                TILED: true
-                            },
-                            // serverType: "iserver",
-                            crossOrigin: "anonymous"
-                        }),
-
-                    }),
 
 
 
@@ -125,8 +107,8 @@ var tian_di_tu_annotation = new ol.layer.Tile({
         //view范围
         view: new ol.View({
             projection: 'EPSG:3857',
-            center: ol.proj.fromLonLat([116.187437213, 38.955143786]), //坐标转换
-            zoom: 10
+            center: ol.proj.fromLonLat([116.027437213, 38.995143786]), //坐标转换
+            zoom: 10.9
         })
 
     });

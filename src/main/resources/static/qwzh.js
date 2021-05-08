@@ -10,7 +10,7 @@ var quwei = new ol.layer.Tile({
 
 
         params: {
-            LAYERS: "quwei",
+            LAYERS: "quweizhanshi",
             TILED: true
         },
         // serverType: "iserver",
@@ -111,8 +111,10 @@ var tian_di_tu_annotation = new ol.layer.Tile({
         //view范围
         view: new ol.View({
             projection: 'EPSG:3857',
-            center: ol.proj.fromLonLat([117.919402, 39.053929]), //坐标转换
-            zoom: 7
+
+            center: ol.proj.fromLonLat([116.187437213, 38.955143786]), //坐标转换
+            zoom: 10.2
+
         })
 
     });

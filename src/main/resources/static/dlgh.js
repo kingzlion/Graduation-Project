@@ -19,6 +19,27 @@ var wmscun = new ol.layer.Tile({
 });
 
 ///WMS村庄Layer图层
+var asfasf= new ol.layer.Tile({
+
+
+    title: '底图',
+    source: new ol.source.TileWMS({
+        ratio: 1,
+        params: { 'LAYERS': 'show:0' },
+        url: "http://47.95.218.128:8090/iserver/services/map-XASP/wms130",
+
+
+        params: {
+            LAYERS: "liulandi",
+            TILED: true
+        },
+        // serverType: "iserver",
+        crossOrigin: "anonymous"
+    })
+});
+
+
+///WMS村庄Layer图层
 ///WMS村庄Layer图层
 var wmsqq = new ol.layer.Tile({
 
@@ -206,7 +227,7 @@ var tian_di_tu_annotation = new ol.layer.Tile({
             new ol.layer.Group({
                 title: 'Overlays',
                 layers: [
-                    zu, daolu, wmsc, wmscun, zu1, wmsqq,tian_di_tu_annotation
+                    asfasf,zu, daolu, wmsc, wmscun, zu1, wmsqq,tian_di_tu_annotation
                 ]
             }),
             $vector

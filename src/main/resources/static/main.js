@@ -106,7 +106,7 @@ var zu = new ol.layer.Tile({
 
 
                     new ol.layer.Tile({
-                        title: 'Water color',
+                        title: '水系',
                         type: 'base',
                         visible: false,
                         source: new ol.source.Stamen({
@@ -116,24 +116,7 @@ var zu = new ol.layer.Tile({
                         })
                     }),
 
-                    new ol.layer.Tile({
 
-                        title: '遥感影像',
-                        type: 'base',
-                        visible: true,
-                        source: new ol.source.TileWMS({
-                            ratio: 1,
-                            params: { 'LAYERS': 'show:0' },
-                            url: "http://47.95.218.128:8090/iserver/services/map-XASP/wms130",
-                            params: {
-                                LAYERS: "rsmap",
-                                TILED: true
-                            },
-                            // serverType: "iserver",
-                            crossOrigin: "anonymous"
-                        }),
-
-                    }),
 
                     new ol.layer.Tile({
                         title: 'R1线',
@@ -179,7 +162,7 @@ var zu = new ol.layer.Tile({
 
 
                     new ol.layer.Tile({
-                        title: "天星影像",
+                        title: "影像",
                         type: 'base',
                         visible: true,
                         source: new ol.source.XYZ({

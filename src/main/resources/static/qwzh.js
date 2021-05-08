@@ -554,11 +554,11 @@ var tian_di_tu_annotation = new ol.layer.Tile({
 
 
     //导览回雄安新区 坐标    view.animate  
-    var location1 = ol.proj.fromLonLat([115.919402, 39.053929]);
+    var location1 = ol.proj.fromLonLat([116.187437213, 38.955143786]);
     //飞行   其他 Pan to London Elastic to Moscow Bounce to Istanbul Spin to Rome Fly to Bern Rotate around Rome Take a tour
     function flyTo(location, done) {
         //持续时间
-        var duration = 2000;
+        var duration = 4000;
         var view = map.getView();
         var zoom = view.getZoom();
         var parts = 2;
@@ -580,11 +580,11 @@ var tian_di_tu_annotation = new ol.layer.Tile({
         }, callback);
         view.animate({
             //缩放动画 变化范围
-            zoom: zoom - 1,
+            zoom: 6.5,
             duration: duration / 2
         }, {
             //最后缩放级别
-            zoom: 11,
+            zoom: 10.3,
             duration: duration / 2
         }, callback);
     }

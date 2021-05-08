@@ -668,7 +668,7 @@ var zu = new ol.layer.Tile({
 
 
     //导览回雄安新区 坐标    view.animate
-    var location1 = ol.proj.fromLonLat([115.919402, 39.053929]);
+    var location1 = ol.proj.fromLonLat([116.187437213, 38.955143786]);
     //飞行   其他 Pan to London Elastic to Moscow Bounce to Istanbul Spin to Rome Fly to Bern Rotate around Rome Take a tour
     function flyTo(location, done) {
         //持续时间
@@ -698,7 +698,7 @@ var zu = new ol.layer.Tile({
             duration: duration / 2
         }, {
             //最后缩放级别
-            zoom: 11,
+            zoom: 10.3,
             duration: duration / 2
         }, callback);
     }

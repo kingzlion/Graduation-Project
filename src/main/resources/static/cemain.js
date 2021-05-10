@@ -1,32 +1,26 @@
-function cfeature(x, y) {
-    return new ol.Feature(
-        new ol.geom.Point(ol.proj.fromLonLat([parseFloat(x), parseFloat(y)]))
-    );
-}
-///WMS村庄QUWEI图层
-var quwei = new ol.layer.Tile({
+///WMS村庄Layer图层
+var wmscun = new ol.layer.Tile({
 
 
-    title: '区位图',
+    title: '现有村镇',
     source: new ol.source.TileWMS({
         ratio: 1,
         params: { 'LAYERS': 'show:0' },
         url: "http://47.95.218.128:8090/iserver/services/map-XASP/wms130",
-
-
         params: {
-            LAYERS: "rwjg",
+            LAYERS: "css",
             TILED: true
         },
-        // serverType: "iserver",
         crossOrigin: "anonymous"
     })
 });
+
+
 //天地图注记
 var tian_di_tu_annotation = new ol.layer.Tile({
-    title: "地名标注",
     source: new ol.source.XYZ({
-        url: 'http://t3.tianditu.com/DataServer?T=cva_w&x={x}&y={y}&l={z}&tk=c8f40527485d981d34c5369cb830104a'
+        url: 'http://t3.tianditu.com/DataServer?T=cva_w&x={x}&y={y}&l={z}&tk=c8f40527485d981d34c5369cb830104a',
+        crossOrigin: 'anonymous'
     })
 });
 
@@ -37,20 +31,15 @@ var tian_di_tu_annotation = new ol.layer.Tile({
     var $vector = new ol.layer.Vector({
         source: new ol.source.Vector({ wrapX: false })
     });
-    var _vector = new ol.layer.Vector({
-        source: new ol.source.Vector({ wrapX: false })
-    });
-    var _feature = null;
-    var _overlay = new ol.Overlay({
-        element: document.getElementById("popup"),
-        autoPan: true
-    });
     var map = new ol.Map({
+
         target: 'map',
         layers: [
             new ol.layer.Group({
                 'title': 'Base maps',
                 layers: [
+
+
                     new ol.layer.Tile({
                         title: '水系',
                         type: 'base',
@@ -65,12 +54,52 @@ var tian_di_tu_annotation = new ol.layer.Tile({
 
 
                     new ol.layer.Tile({
+                        title: 'R1线',
+                        type: 'base',
+                        visible: true,
+                        source: new ol.source.TileWMS({
+                            ratio: 1,
+                            params: { 'LAYERS': 'show:0' },
+                            url: "http://47.95.218.128:8090/iserver/services/map-XASP/wms130",
+
+
+                            params: {
+                                LAYERS: "r1",
+                                TILED: true
+                            },
+                            // serverType: "iserver",
+                            crossOrigin: "anonymous"
+                        })
+
+                    }),
+
+                    new ol.layer.Tile({
+
+
+                        title: '规划图',
+                        type: 'base',
+                        visible: true,
+                        source: new ol.source.TileWMS({
+                            ratio: 1,
+                            params: { 'LAYERS': 'show:0' },
+                            url: "http://47.95.218.128:8090/iserver/services/map-XASP/wms130",
+                            params: {
+                                LAYERS: "cunzhuang",
+                                TILED: true
+                            },
+                            // serverType: "iserver",
+                            crossOrigin: "anonymous"
+                        })
+                    }),
+
+
+                    new ol.layer.Tile({
                         title: "影像",
                         type: 'base',
                         visible: true,
                         source: new ol.source.XYZ({
                             url: 'http://t3.tianditu.com/DataServer?T=img_w&x={x}&y={y}&l={z}&tk=c8f40527485d981d34c5369cb830104a',
-                            crossOrigin: "anonymous"
+                            crossOrigin: 'anonymous'
                         })
                     }),
 
@@ -80,9 +109,17 @@ var tian_di_tu_annotation = new ol.layer.Tile({
                         visible: true,
                         source: new ol.source.XYZ({
                             url: "http://t4.tianditu.com/DataServer?T=vec_w&x={x}&y={y}&l={z}&tk=c8f40527485d981d34c5369cb830104a",
-                            crossOrigin: "anonymous"
+                            crossOrigin: 'anonymous'
                         })
                     })
+                    // ,
+                    //
+                    // new ol.layer.Tile({
+                    //     title: 'OSM',
+                    //     type: 'base',
+                    //     visible: true,
+                    //     source: new ol.source.OSM()
+                    // })
 
 
                 ]
@@ -91,11 +128,10 @@ var tian_di_tu_annotation = new ol.layer.Tile({
             new ol.layer.Group({
                 title: 'Overlays',
                 layers: [
-                    quwei,tian_di_tu_annotation
+                    wmscun,tian_di_tu_annotation
                 ]
             }),
-            $vector,
-            _vector
+            $vector
         ],
 
         //加载瓦片时开启动画效果
@@ -105,15 +141,14 @@ var tian_di_tu_annotation = new ol.layer.Tile({
         //view范围
         view: new ol.View({
             projection: 'EPSG:3857',
-            center: ol.proj.fromLonLat([116.027437213, 38.955143786]), //坐标转换
-            zoom: 11
+            center: ol.proj.fromLonLat([115.907, 39.011]), //坐标转换
+            zoom: 10.5
         })
 
     });
     var layerSwitcher = new ol.control.LayerSwitcher({
         tipLabel: 'Légende' // Optional label for button
     });
-
 
     map.addControl(layerSwitcher);
 
@@ -501,8 +536,52 @@ var tian_di_tu_annotation = new ol.layer.Tile({
         map.renderSync();
     });
 
+    // document.getElementById('export-png').addEventListener('click', function() {
 
-    //导览回 坐标    view.animate  
+    //     map.once("postcompose", function(event) {
+    //         var canvas = event.context.canvas;
+    //         if (navigator.msSaveBlob) {
+    //             navigator.msSaveBlob(canvas.msToBlob(), "map.png");
+    //         } else {
+    //             canvas.toBlob(function(blob) {
+    //                 // 报错删除FileSaverJS
+    //                FileSaverJS.saveAs(blob, "map.png");
+    //             });
+    //         }
+    //     });
+    //     map.renderSync();
+
+    // });
+
+
+
+    //openlayers 3例子   在4中animation改为 view.animate
+    // //各定位点(中国省会城市)
+    // var shenyang = ol.proj.fromLonLat([123.24, 41.50]);
+    // var beijing = ol.proj.fromLonLat([116.28, 39.54]);
+    // var shanghai = ol.proj.fromLonLat([121.29, 31.14]);
+    // var wuhan = ol.proj.fromLonLat([114.21, 30.37]);
+    // var guangzhou = ol.proj.fromLonLat([113.15, 23.08]);
+    // var haikou = ol.proj.fromLonLat([110.20, 20.02]);
+    // var xian = ol.proj.fromLonLat([108.93, 34.28]);
+
+    // //旋转动画
+    // document.getElementById('fly').onclick = function() {
+    //     //旋转动画
+    //     var rotate = ol.animation.rotate({
+    //         //持续时间
+    //         duration: 2000,
+    //         //旋转角度
+    //         rotation: -4 * Math.PI
+    //     });
+    //     //地图渲染前设置旋转动画效果(rotate)
+    //     map.beforeRender(rotate);
+    //     //定位
+    //     view.setCenter(shenyang);
+    // };
+
+
+    //导览回雄安新区 坐标    view.animate
     var location1 = ol.proj.fromLonLat([116.187437213, 38.955143786]);
     //飞行   其他 Pan to London Elastic to Moscow Bounce to Istanbul Spin to Rome Fly to Bern Rotate around Rome Take a tour
     function flyTo(location, done) {
@@ -538,6 +617,19 @@ var tian_di_tu_annotation = new ol.layer.Tile({
         }, callback);
     }
 
+    //////////////////////////////////////////////////////   方法3 button
+
+    //      1
+    // document.getElementById('fly').onclick = function() {
+
+    // };
+    //  2
+    // function onClick(id, callback) {
+    //     document.getElementById(id).addEventListener('click', callback);
+    // }
+    // onClick('fly', function() {
+
+    // });
 
 
     //飞行旋转动画
@@ -545,97 +637,6 @@ var tian_di_tu_annotation = new ol.layer.Tile({
         flyTo(location1, function() {});
     });
 
-    //-----------------加marker-----------------------------
 
-
-    $('#mainContent').on('click', 'tr', function(e) {
-        var id = $($(this).children("td:nth-child(1)")).html();
-        if (id) {
-            $.post("http://47.95.218.128:8080/api/get", {
-                id: id
-            }, function(data) {
-                if (data.code === 2000) {
-                    var pos = ol.proj.fromLonLat([parseFloat(data.data.x), parseFloat(data.data.y)]);
-                    map.getView().animate({ // 只设置需要的属性即可
-                        center: pos, // 中心点
-                        zoom: 12, // 缩放级别
-                        rotation: undefined, // 缩放完成view视图旋转弧度
-                        duration: 1500 // 缩放持续时间，默认不需要设置
-                    });
-                    if (_feature) {
-                        _vector.getSource().removeFeature(_feature);
-                        _feature = null;
-                    }
-                    _feature = new ol.Feature({
-                        geometry: new ol.geom.Point(pos, "XY"),
-                        name: "image.point"
-                    });
-                    _vector.getSource().addFeature(_feature);
-                    _vector.setStyle(new ol.style.Style({
-                        image: new ol.style.Icon({
-                            // opacity: 0.75,
-                            src: "dist/img/ceshi.png"
-                        })
-                    }));
-                    map.addOverlay(_overlay);
-                    _overlay.setPosition(pos);
-
-                    setTimeout(function() {
-
-
-                        $("#popup .popup-head-title").html(data.data.name);
-                        $("#popup .item-name").html(data.data.name);
-                        $("#popup .item-x").html(data.data.x);
-                        $("#popup .item-y").html(data.data.y);
-                        document.getElementById("popup-closer")
-                            .onclick = function(ev) {
-                                _overlay.setPosition(null);
-                            }
-                    }, 100);
-                }
-            });
-        }
-    });
-    //rwjg
-    $.post("http://47.95.218.128:8080/api/rwjg/list", function(data) {
-        if (data.code != 200) {
-            return;
-        }
-        var idata = null;
-        for (var item in data.data) {
-            idata = data.data[item];
-            var fea = cfeature(idata.x, idata.y);
-            fea.$data = idata;
-            _vector.getSource().addFeature(fea);
-        }
-        _vector.setStyle(new ol.style.Style({
-            image: new ol.style.Icon({
-                // opacity: 0.75,
-                src: "dist/img/ceshi.png"
-            })
-        }));
-    });
-    map.on('singleclick', function(evt) {
-        var coordinate = evt.coordinate;
-        //判断当前单击处是否有要素，捕获到要素时弹出popup
-        var feature = map.forEachFeatureAtPixel(evt.pixel, function(feature, layer) { return feature; });
-        if (feature && feature.$data) {
-            _overlay.setPosition(feature.getGeometry().getCoordinates());
-            setTimeout(function() {
-                var data = feature.$data;
-                $("#popup .popup-head-title").html(data.name);
-                $("#popup .item-name span").html(data.name);
-                $("#popup .item-content span").html(data.jianjie);
-                $("#popup .popup-item img").attr("src", data.src);
-                $("#popup .item-x").html(data.x);
-                $("#popup .item-y").html(data.y);
-                document.getElementById("popup-closer")
-                    .onclick = function(ev) {
-                        _overlay.setPosition(null);
-                    }
-            }, 100);
-            map.addOverlay(_overlay);
-        }
-    });
 
 })();

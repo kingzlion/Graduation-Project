@@ -557,7 +557,7 @@ var tian_di_tu_annotation = new ol.layer.Tile({
     $('#mainContent').on('click', 'tr', function(e) {
         var id = $($(this).children("td:nth-child(1)")).html();
         if (id) {
-            $.post("http://127.0.0.1:8080/api/get", {
+            $.post("http://47.95.218.128:8080/api/get", {
                 id: id
             }, function(data) {
                 if (data.code === 2000) {

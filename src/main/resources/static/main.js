@@ -2,7 +2,7 @@
 var wmscun = new ol.layer.Tile({
 
 
-    title: '现有村镇',
+    title: '村庄',
     source: new ol.source.TileWMS({
         ratio: 1,
         params: { 'LAYERS': 'show:0' },
@@ -13,82 +13,21 @@ var wmscun = new ol.layer.Tile({
             LAYERS: "css",
             TILED: true
         },
-        crossOrigin: "anonymous"
-    })
-});
-
-///WMS村庄Layer图层
-var wmsc = new ol.layer.Tile({
-
-
-    title: '规划图',
-    source: new ol.source.TileWMS({
-        ratio: 1,
-        params: { 'LAYERS': 'show:0' },
-        url: "http://47.95.218.128:8090/iserver/services/map-XASP/wms130",
-
-        visible: false,
-        params: {
-            LAYERS: "cunzhuang",
-            TILED: true
-        },
         // serverType: "iserver",
         crossOrigin: "anonymous"
     })
 });
 
 
-///规划道路
-var daolu = new ol.layer.Tile({
-
-
-    title: '规划道路',
-    source: new ol.source.TileWMS({
-        ratio: 1,
-        params: { 'LAYERS': 'show:0' },
-        url: "http://47.95.218.128:8090/iserver/services/map-XASP/wms130",
-
-        visible: false,
-        params: {
-            LAYERS: "daoluxian",
-            TILED: true
-        },
-        // serverType: "iserver",
-        crossOrigin: "anonymous"
-    })
-});
 
 //天地图注记
 var tian_di_tu_annotation = new ol.layer.Tile({
+    title: "地名标注",
     source: new ol.source.XYZ({
         url: 'http://t3.tianditu.com/DataServer?T=cva_w&x={x}&y={y}&l={z}&tk=c8f40527485d981d34c5369cb830104a',
-        crossOrigin: 'anonymous'
-    })
-});
-
-///规划组团
-var zu = new ol.layer.Tile({
-
-
-    title: '规划组团',
-    source: new ol.source.TileWMS({
-        ratio: 1,
-        params: { 'LAYERS': 'show:0' },
-        url: "http://47.95.218.128:8090/iserver/services/map-XASP/wms130",
-
-        visible: false,
-        params: {
-            LAYERS: "zu",
-            TILED: true
-        },
-        // serverType: "iserver",
         crossOrigin: "anonymous"
     })
 });
-
-
-
-
 
 //地图窗口图层组
 
@@ -106,7 +45,7 @@ var zu = new ol.layer.Tile({
 
 
                     new ol.layer.Tile({
-                        title: '水系',
+                        title: 'Water color',
                         type: 'base',
                         visible: false,
                         source: new ol.source.Stamen({
@@ -115,8 +54,6 @@ var zu = new ol.layer.Tile({
 
                         })
                     }),
-
-
 
                     new ol.layer.Tile({
                         title: 'R1线',
@@ -134,30 +71,8 @@ var zu = new ol.layer.Tile({
                             },
                             // serverType: "iserver",
                             crossOrigin: "anonymous"
-                        }),
+                        })
 
-
-
-
-                    }),
-
-                    new ol.layer.Tile({
-
-
-                        title: '规划图',
-                        type: 'base',
-                        visible: true,
-                        source: new ol.source.TileWMS({
-                            ratio: 1,
-                            params: { 'LAYERS': 'show:0' },
-                            url: "http://47.95.218.128:8090/iserver/services/map-XASP/wms130",
-                            params: {
-                                LAYERS: "cunzhuang",
-                                TILED: true
-                            },
-                            // serverType: "iserver",
-                            crossOrigin: "anonymous"
-                        }),
                     }),
 
 
@@ -167,7 +82,7 @@ var zu = new ol.layer.Tile({
                         visible: true,
                         source: new ol.source.XYZ({
                             url: 'http://t3.tianditu.com/DataServer?T=img_w&x={x}&y={y}&l={z}&tk=c8f40527485d981d34c5369cb830104a',
-                            crossOrigin: 'anonymous'
+                            crossOrigin: "anonymous"
                         })
                     }),
 
@@ -177,17 +92,9 @@ var zu = new ol.layer.Tile({
                         visible: true,
                         source: new ol.source.XYZ({
                             url: "http://t4.tianditu.com/DataServer?T=vec_w&x={x}&y={y}&l={z}&tk=c8f40527485d981d34c5369cb830104a",
-                            crossOrigin: 'anonymous'
+                            crossOrigin: "anonymous"
                         })
                     })
-                    // ,
-                    //
-                    // new ol.layer.Tile({
-                    //     title: 'OSM',
-                    //     type: 'base',
-                    //     visible: true,
-                    //     source: new ol.source.OSM()
-                    // })
 
 
                 ]
@@ -196,7 +103,7 @@ var zu = new ol.layer.Tile({
             new ol.layer.Group({
                 title: 'Overlays',
                 layers: [
-                    wmscun
+                   wmscun,tian_di_tu_annotation
                 ]
             }),
             $vector
@@ -209,8 +116,8 @@ var zu = new ol.layer.Tile({
         //view范围
         view: new ol.View({
             projection: 'EPSG:3857',
-            center: ol.proj.fromLonLat([115.907, 39.011]), //坐标转换
-            zoom: 10.5
+            center: ol.proj.fromLonLat([116.019402, 38.980929]), //坐标转换
+            zoom: 11
         })
 
     });
@@ -218,7 +125,7 @@ var zu = new ol.layer.Tile({
         tipLabel: 'Légende' // Optional label for button
     });
 
-    map.addLayer(tian_di_tu_annotation);
+
     map.addControl(layerSwitcher);
 
     ///比例尺
@@ -592,6 +499,7 @@ var zu = new ol.layer.Tile({
             console.log(data)
         }
     })
+
 
 
     //打印

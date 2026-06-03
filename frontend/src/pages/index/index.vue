@@ -837,13 +837,11 @@ const initLeafletMap = async () => {
     tap: false // 禁用默认 tap 拦截，解决移动端与响应式开发触控下拖拽失效的问题
   }).setView([center.value.latitude, center.value.longitude], scale.value);
 
-  // 1. 底层：使用经典学术级 CartoDB Voyager 图层 (高度还原 OpenStreetMap 欧式优雅清新美学 - Cloudflare CDN 秒载)
-  leafletOsmLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-    subdomains: 'abcd',
+  // 1. 底层：OpenStreetMap 标准瓦片 (与 B 端 PC 一致)
+  leafletOsmLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    subdomains: "abc",
     maxZoom: 18
-  }).addTo(leafletMap);
-
-  // 2. 顶层：使用国内高德地图高清卫星实景图层 (2026 建设新城卫星实景 - 确保卫星影像秒级呈现)
+  }).addTo(leafletMap);  // 2. 顶层：使用国内高德地图高清卫星实景图层 (2026 建设新城卫星实景 - 确保卫星影像秒级呈现)
   leafletSatelliteLayer = L.tileLayer('https://webst{s}.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}', {
     subdomains: ["01", "02", "03", "04"],
     maxZoom: 18,

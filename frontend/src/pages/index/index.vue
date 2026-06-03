@@ -130,9 +130,9 @@
       <view class="card-header">
         <view class="card-title-group">
           <text class="card-badge" :class="activeTab === 'c' ? 'badge-c' : (activeTab === 'b' ? 'badge-b' : 'badge-i')">
-            {{ activeTab === 'c' ? '乡土记忆' : (activeTab === 'b' ? (selectedItem.category || '基建商机') : '招商地块') }}
+            {{ activeTab === 'c' ? (selectedItem.type === 'village' ? (selectedItem.status === 0 ? '已拆迁' : (selectedItem.status === 1 ? '征迁中' : '保留村')) : '乡土记忆') : (activeTab === 'b' ? (selectedItem.category || '基建商机') : '招商地块') }}
           </text>
-          <text class="card-title">{{ selectedItem.name || selectedItem.villageName || selectedItem.parcel_name }}</text>
+          <text class="card-title">{{ selectedItem.name || selectedItem.villageName || selectedItem.parcel_name || selectedItem.village_name }}</text>
         </view>
         <view class="close-btn" @click="closeCard">✕</view>
       </view>
@@ -150,15 +150,25 @@
           </swiper>
 
           <view class="village-meta-grid">
-            <view class="meta-item">
+            <view class="meta-item" v-if="selectedItem.type === 'village'">
+              <text class="meta-label">当前状态</text>
+              <text class="meta-val" :style="selectedItem.status === 0 ? 'color: #ef4444;' : (selectedItem.status === 1 ? 'color: #f59e0b;' : 'color: #10b981;')">
+                {{ selectedItem.status === 0 ? '已拆除' : (selectedItem.status === 1 ? '征迁中' : '特色保留') }}
+              </text>
+            </view>
+            <view class="meta-item" v-else>
               <text class="meta-label">所属原乡镇</text>
               <text class="meta-val">{{ selectedItem.township || '容城镇' }}</text>
             </view>
             <view class="meta-item">
-              <text class="meta-label">拆迁年份</text>
-              <text class="meta-val highlight-amber">{{ selectedItem.demolishedYear || '2019' }}年</text>
+              <text class="meta-label">{{ selectedItem.type === 'village' ? '变迁年份' : '拆迁年份' }}</text>
+              <text class="meta-val highlight-amber">{{ selectedItem.plan_demolition_year || selectedItem.demolishedYear || '保留' }}{{ (selectedItem.plan_demolition_year || selectedItem.demolishedYear) ? '年' : '' }}</text>
             </view>
-            <view class="meta-item">
+            <view class="meta-item" v-if="selectedItem.type === 'village'">
+              <text class="meta-label">数据类型</text>
+              <text class="meta-val" style="color: #10b981;">面矢量要素</text>
+            </view>
+            <view class="meta-item" v-else>
               <text class="meta-label">回迁安置地</text>
               <text class="meta-val">{{ selectedItem.currentDistrict || '容东片区' }}</text>
             </view>
@@ -167,7 +177,7 @@
           <view class="section-title">✨ 老村庄旧事与回忆</view>
           <view class="village-history-card">
             <text class="quote-icon-left">“</text>
-            <text class="history-desc">{{ selectedItem.jianjie || selectedItem.historyContent }}</text>
+            <text class="history-desc">{{ selectedItem.jianjie || selectedItem.historyContent || selectedItem.history || '无历史背景资料' }}</text>
             <text class="quote-icon-right">”</text>
           </view>
 
@@ -447,6 +457,7 @@ const nearbyMerchants = ref([]);
 
 // 新增数据与状态
 const rawParcels = ref([]);
+const rawVillages = ref([]);
 const showCitizenModal = ref(false);
 const showIntentModal = ref(false);
 const issueTypes = ['设施损坏', '环境脏乱', '美丽风景分享'];
@@ -675,6 +686,16 @@ const fetchData = async () => {
       console.log('Parcels fail', err);
     }
     
+    // Fetch Spatial Villages
+    try {
+      const villagesRes = await fastRequest({ url: '/spatial/villages' });
+      if (villagesRes && villagesRes.features) {
+        rawVillages.value = villagesRes.features;
+      }
+    } catch(err) {
+      console.log('Villages fail', err);
+    }
+    
     // #ifdef H5
     if (window.L) {
       updateLeafletMarkers(window.L);
@@ -868,6 +889,41 @@ const initLeafletMap = async () => {
 
 let leafletPolygonsLayer = null;
 
+const getPolygonCentroid = (geometry) => {
+  try {
+    if (geometry && geometry.type === 'Polygon' && geometry.coordinates && geometry.coordinates[0]) {
+      const coords = geometry.coordinates[0];
+      let sumLng = 0;
+      let sumLat = 0;
+      coords.forEach(pt => {
+        sumLng += pt[0];
+        sumLat += pt[1];
+      });
+      return {
+        longitude: sumLng / coords.length,
+        latitude: sumLat / coords.length
+      };
+    }
+  } catch (e) {}
+  return null;
+};
+
+const onVillagePolygonTap = (item) => {
+  selectedItem.value = {
+    id: item.properties.id,
+    name: item.properties.village_name,
+    status: item.properties.status,
+    plan_demolition_year: item.properties.plan_demolition_year,
+    history: item.properties.history,
+    type: 'village'
+  };
+  const centroid = getPolygonCentroid(item.geometry);
+  if (centroid) {
+    center.value = centroid;
+  }
+  fetchComments(item.properties.id);
+};
+
 const updateLeafletPolygons = (L) => {
   if (!leafletMap || !leafletPolygonsLayer) return;
   leafletPolygonsLayer.clearLayers();
@@ -889,6 +945,55 @@ const updateLeafletPolygons = (L) => {
         });
         leafletPolygonsLayer.addLayer(polygon);
       } catch (e) {}
+    });
+  } else if (activeTab.value === 'c') {
+    rawVillages.value.forEach(item => {
+      try {
+        const status = item.properties.status;
+        const demoYear = item.properties.plan_demolition_year;
+        
+        // 动态展示逻辑（与PC后台时空滑块一致）
+        // 大于所选年份说明还没拆除，显示为未拆除（特色保留/暂未拆迁）
+        let isActuallyDemolished = false;
+        let isActuallyDemolishing = false;
+        
+        if (status === 0) {
+          if (!demoYear || demoYear <= selectedYear.value) {
+            isActuallyDemolished = true;
+          }
+        } else if (status === 1) {
+          if (!demoYear || demoYear <= selectedYear.value) {
+            isActuallyDemolishing = true;
+          }
+        }
+        
+        let fillColor = 'rgba(16, 185, 129, 0.2)'; // 绿色：特色保留/未拆除
+        let strokeColor = '#10B981';
+        
+        if (isActuallyDemolished) {
+          fillColor = 'rgba(239, 68, 68, 0.2)'; // 红色：已拆除
+          strokeColor = '#EF4444';
+        } else if (isActuallyDemolishing) {
+          fillColor = 'rgba(245, 158, 11, 0.25)'; // 黄色：征迁拆迁中
+          strokeColor = '#F59E0B';
+        }
+        
+        const polygon = L.geoJSON(item.geometry, {
+          style: {
+            color: strokeColor,
+            weight: 2,
+            opacity: 0.8,
+            fillOpacity: 0.2,
+            fillColor: fillColor
+          }
+        });
+        polygon.on('click', () => {
+          onVillagePolygonTap(item);
+        });
+        leafletPolygonsLayer.addLayer(polygon);
+      } catch (e) {
+        console.error('Error drawing village polygon', e);
+      }
     });
   }
 };
@@ -977,6 +1082,12 @@ watch(filteredMarkers, () => {
   }
 }, { deep: true });
 
+watch(selectedYear, () => {
+  if (window.L) {
+    updateLeafletPolygons(window.L);
+  }
+});
+
 watch(center, (newVal) => {
   if (leafletMap) {
     leafletMap.setView([newVal.latitude, newVal.longitude], scale.value);
@@ -1001,13 +1112,24 @@ const joinPlatform = () => {
 
 const fetchComments = async (villageId) => {
   try {
-    const res = await request({
-      url: `/comment/list?villageId=${villageId}`
-    });
-    if (res.code === 200 && res.data) {
-      comments.value = res.data;
+    if (selectedItem.value && selectedItem.value.type === 'village') {
+      const res = await fastRequest({
+        url: `/spatial/villages/${encodeURIComponent(villageId)}/comments`
+      });
+      if (res) {
+        comments.value = res;
+      } else {
+        comments.value = [];
+      }
     } else {
-      comments.value = [];
+      const res = await request({
+        url: `/comment/list?villageId=${villageId}`
+      });
+      if (res.code === 200 && res.data) {
+        comments.value = res.data;
+      } else {
+        comments.value = [];
+      }
     }
   } catch (err) {
     console.error('获取留言列表失败', err);
@@ -1024,37 +1146,67 @@ const submitComment = async () => {
     return;
   }
   const author = newCommentAuthor.value.trim() || '匿名乡亲';
-  const payload = {
-    villageId: selectedItem.value.id.toString(),
-    author: author,
-    content: newCommentContent.value.trim()
-  };
-  try {
-    const res = await request({
-      url: '/comment/save',
-      method: 'POST',
-      data: payload
-    });
-    if (res.code === 200 && res.data) {
-      uni.showToast({
-        title: '回忆发表成功',
-        icon: 'success'
+  
+  if (selectedItem.value && selectedItem.value.type === 'village') {
+    const payload = {
+      author: author,
+      content: newCommentContent.value.trim()
+    };
+    try {
+      const res = await fastRequest({
+        url: `/spatial/villages/${encodeURIComponent(selectedItem.value.id)}/comments`,
+        method: 'POST',
+        data: payload
       });
-      comments.value.unshift(res.data);
-      newCommentContent.value = '';
-      newCommentAuthor.value = '';
-    } else {
+      if (res) {
+        uni.showToast({
+          title: '回忆发表成功',
+          icon: 'success'
+        });
+        comments.value.unshift(res);
+        newCommentContent.value = '';
+        newCommentAuthor.value = '';
+      }
+    } catch (err) {
+      console.error('提交留言失败', err);
       uni.showToast({
-        title: res.message || '发布失败',
+        title: '发布失败，请检查网络',
         icon: 'none'
       });
     }
-  } catch (err) {
-    console.error('提交留言失败', err);
-    uni.showToast({
-      title: '发布失败，请检查网络',
-      icon: 'none'
-    });
+  } else {
+    const payload = {
+      villageId: selectedItem.value.id.toString(),
+      author: author,
+      content: newCommentContent.value.trim()
+    };
+    try {
+      const res = await request({
+        url: '/comment/save',
+        method: 'POST',
+        data: payload
+      });
+      if (res.code === 200 && res.data) {
+        uni.showToast({
+          title: '回忆发表成功',
+          icon: 'success'
+        });
+        comments.value.unshift(res.data);
+        newCommentContent.value = '';
+        newCommentAuthor.value = '';
+      } else {
+        uni.showToast({
+          title: res.message || '发布失败',
+          icon: 'none'
+        });
+      }
+    } catch (err) {
+      console.error('提交留言失败', err);
+      uni.showToast({
+        title: '发布失败，请检查网络',
+        icon: 'none'
+      });
+    }
   }
 };
 

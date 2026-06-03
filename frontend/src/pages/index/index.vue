@@ -1129,15 +1129,6 @@ const submitCitizenReport = async () => {
     uni.hideLoading();
     uni.showToast({ title: "网络异常，请稍后重试", icon: "none" });
   }
-};    const res = await fastRequest({
-      url: '/citizen/report',
-      method: 'POST',
-      data: citizenForm.value
-    });
-    uni.showToast({ title: '上报成功，感谢支持！', icon: 'success' });
-    showCitizenModal.value = false;
-    citizenForm.value.description = '';
-  } catch(e) {}
 };
 
 const submitInvestmentIntent = async () => {

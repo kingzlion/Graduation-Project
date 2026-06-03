@@ -1,7 +1,17 @@
-<script setup>
-import HelloWorld from './components/HelloWorld.vue'
+<script>
+export default {
+  onLaunch: function () {
+    console.log('App Launch')
+  },
+  onShow: function () {
+    console.log('App Show')
+  },
+  onHide: function () {
+    console.log('App Hide')
+  },
+}
 </script>
 
-<template>
-  <HelloWorld />
-</template>
+<style>
+/*每个页面公共css */
+</style>

@@ -9,7 +9,7 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BACKEND_DIR="$PROJECT_ROOT/backend"
 AGENTS_DIR="$PROJECT_ROOT/agents"
 FRONTEND_PC_DIR="$PROJECT_ROOT/frontend-pc"
-FRONTEND_H5_DIR="$PROJECT_ROOT/frontend_old"
+FRONTEND_H5_DIR="$PROJECT_ROOT/frontend"
 
 # 颜色控制输出
 GREEN='\033[0;32m'

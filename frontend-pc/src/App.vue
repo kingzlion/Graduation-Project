@@ -103,7 +103,50 @@ const adminForm = reactive({
 })
 
 const showAdminModal = ref(false)
-const activeAdminTab = ref('zdgc') // zdgc, merchant, rwjg
+const activeAdminTab = ref('zdgc') // zdgc, merchant, rwjg, spatial-villages, investment-parcels
+
+// 时空村落编辑表单与列表
+const spatialVillages = ref([])
+const spatialVillageForm = reactive({
+  id: '',
+  village_name: '',
+  status: 0,
+  plan_demolition_year: 2018,
+  geom_json: '[[[116.125, 38.985], [116.135, 38.985], [116.135, 38.975], [116.125, 38.975], [116.125, 38.985]]]',
+  history: ''
+})
+
+function resetSpatialVillageForm() {
+  spatialVillageForm.id = ''
+  spatialVillageForm.village_name = ''
+  spatialVillageForm.status = 0
+  spatialVillageForm.plan_demolition_year = 2018
+  spatialVillageForm.geom_json = '[[[116.125, 38.985], [116.135, 38.985], [116.135, 38.975], [116.125, 38.975], [116.125, 38.985]]]'
+  spatialVillageForm.history = ''
+}
+
+// 招商引资编辑表单与意向申请列表
+const activeInvestmentSubTab = ref('parcels') // parcels, intents
+const investmentIntents = ref([])
+const investmentParcelForm = reactive({
+  id: '',
+  parcel_name: '',
+  land_use: '商业用地',
+  area_sqm: 10000,
+  far: 2.0,
+  geom_json: '[[[115.918, 39.050], [115.928, 39.050], [115.928, 39.056], [115.918, 39.056], [115.918, 39.050]]]',
+  status: 0
+})
+
+function resetInvestmentParcelForm() {
+  investmentParcelForm.id = ''
+  investmentParcelForm.parcel_name = ''
+  investmentParcelForm.land_use = '商业用地'
+  investmentParcelForm.area_sqm = 10000
+  investmentParcelForm.far = 2.0
+  investmentParcelForm.geom_json = '[[[115.918, 39.050], [115.928, 39.050], [115.928, 39.056], [115.918, 39.056], [115.918, 39.050]]]'
+  investmentParcelForm.status = 0
+}
 const merchantForm = reactive({
   id: '',
   merchantName: '',
@@ -728,6 +771,9 @@ function openAdminConsole() {
     resetAdminForm();
     resetMerchantForm();
     loadCitizenReportsFromAgent(); // 默认在打开控制台时拉取市民工单
+    loadSpatialVillages();
+    fetchInvestmentParcels();
+    loadInvestmentIntents();
   });
 }
 
@@ -847,6 +893,201 @@ async function updateReportStatus(reportId, newStatus) {
   } catch (e) {
     console.error(e);
     triggerToast('❌ 更新状态失败。');
+  }
+}
+
+// ==========================================
+// 时空老村庄 & 招商引资地块 CRUD 后台管理逻辑
+// ==========================================
+async function loadSpatialVillages() {
+  try {
+    const res = await axios.get('/api/v1/spatial/villages');
+    if (res.data && res.data.features) {
+      spatialVillages.value = res.data.features;
+    }
+  } catch (err) {
+    console.error(err);
+    triggerToast('获取时空老村落数据失败。');
+  }
+}
+
+async function saveSpatialVillageRecord() {
+  if (!spatialVillageForm.id || !spatialVillageForm.village_name || !spatialVillageForm.geom_json) {
+    triggerToast('请填写完整 ID、名称和空间多边形坐标值。');
+    return;
+  }
+  loading.value = true;
+  try {
+    const payload = {
+      id: spatialVillageForm.id.trim(),
+      village_name: spatialVillageForm.village_name.trim(),
+      status: Number(spatialVillageForm.status),
+      plan_demolition_year: spatialVillageForm.plan_demolition_year ? Number(spatialVillageForm.plan_demolition_year) : null,
+      geom_json: spatialVillageForm.geom_json.trim(),
+      history: spatialVillageForm.history.trim()
+    };
+    const res = await axios.post('/api/v1/spatial/villages', payload);
+    loading.value = false;
+    if (res.data) {
+      triggerToast('村落空间数据保存成功！', true);
+      loadSpatialVillages();
+      resetSpatialVillageForm();
+      if (villagesLayer) {
+        villagesLayer.getSource().refresh();
+      }
+    }
+  } catch (err) {
+    loading.value = false;
+    console.error(err);
+    triggerToast('时空村落数据保存失败。');
+  }
+}
+
+function editSpatialVillage(village) {
+  spatialVillageForm.id = village.properties.id;
+  spatialVillageForm.village_name = village.properties.village_name;
+  spatialVillageForm.status = village.properties.status;
+  spatialVillageForm.plan_demolition_year = village.properties.plan_demolition_year;
+  spatialVillageForm.geom_json = JSON.stringify(village.geometry.coordinates);
+  spatialVillageForm.history = village.properties.history || '';
+}
+
+async function deleteSpatialVillageRecord(villageId) {
+  if (!confirm(`确定要物理删除老村落 [${villageId}] 吗？此操作不可逆！`)) return;
+  loading.value = true;
+  try {
+    const res = await axios.delete(`/api/v1/spatial/villages/${encodeURIComponent(villageId)}`);
+    loading.value = false;
+    if (res.data) {
+      triggerToast('时空村落数据已安全移除。', true);
+      loadSpatialVillages();
+      if (villagesLayer) {
+        villagesLayer.getSource().refresh();
+      }
+    }
+  } catch (err) {
+    loading.value = false;
+    console.error(err);
+    triggerToast('删除时空老村落数据失败。');
+  }
+}
+
+function locateVillageOnMap(village) {
+  if (!mapInstance) return;
+  const coords = village.geometry.coordinates[0][0];
+  if (coords) {
+    const center = fromLonLat([parseFloat(coords[0]), parseFloat(coords[1])]);
+    mapInstance.getView().animate({
+      center: center,
+      zoom: 14,
+      duration: 800
+    });
+    showAdminModal.value = false;
+    triggerToast(`📍 正在定位村落：[${village.properties.village_name}]`);
+  }
+}
+
+async function saveInvestmentParcelRecord() {
+  if (!investmentParcelForm.id || !investmentParcelForm.parcel_name || !investmentParcelForm.geom_json) {
+    triggerToast('请填写完整 ID、名称和空间多边形坐标值。');
+    return;
+  }
+  loading.value = true;
+  try {
+    const payload = {
+      id: investmentParcelForm.id.trim(),
+      parcel_name: investmentParcelForm.parcel_name.trim(),
+      land_use: investmentParcelForm.land_use.trim(),
+      area_sqm: Number(investmentParcelForm.area_sqm),
+      far: Number(investmentParcelForm.far),
+      geom_json: investmentParcelForm.geom_json.trim(),
+      status: Number(investmentParcelForm.status)
+    };
+    const res = await axios.post('/api/v1/investment/parcels', payload);
+    loading.value = false;
+    if (res.data) {
+      triggerToast('招商地块数据保存成功！', true);
+      fetchInvestmentParcels();
+      resetInvestmentParcelForm();
+      if (investmentParcelsLayer) {
+        investmentParcelsLayer.getSource().refresh();
+      }
+    }
+  } catch (err) {
+    loading.value = false;
+    console.error(err);
+    triggerToast('招商地块数据保存失败。');
+  }
+}
+
+function editInvestmentParcel(parcel) {
+  investmentParcelForm.id = parcel.properties.id;
+  investmentParcelForm.parcel_name = parcel.properties.parcel_name;
+  investmentParcelForm.land_use = parcel.properties.land_use;
+  investmentParcelForm.area_sqm = parcel.properties.area_sqm;
+  investmentParcelForm.far = parcel.properties.far;
+  investmentParcelForm.geom_json = JSON.stringify(parcel.geometry.coordinates);
+  investmentParcelForm.status = parcel.properties.status;
+}
+
+async function deleteInvestmentParcelRecord(parcelId) {
+  if (!confirm(`确定要物理删除招商地块 [${parcelId}] 吗？此操作不可逆！`)) return;
+  loading.value = true;
+  try {
+    const res = await axios.delete(`/api/v1/investment/parcels/${encodeURIComponent(parcelId)}`);
+    loading.value = false;
+    if (res.data) {
+      triggerToast('招商地块已安全移除。', true);
+      fetchInvestmentParcels();
+      if (investmentParcelsLayer) {
+        investmentParcelsLayer.getSource().refresh();
+      }
+    }
+  } catch (err) {
+    loading.value = false;
+    console.error(err);
+    triggerToast('删除招商地块失败。');
+  }
+}
+
+function locateParcelOnMap(parcel) {
+  if (!mapInstance) return;
+  const coords = parcel.geometry.coordinates[0][0];
+  if (coords) {
+    const center = fromLonLat([parseFloat(coords[0]), parseFloat(coords[1])]);
+    mapInstance.getView().animate({
+      center: center,
+      zoom: 14,
+      duration: 800
+    });
+    showAdminModal.value = false;
+    triggerToast(`📍 正在定位招商地块：[${parcel.properties.parcel_name}]`);
+  }
+}
+
+async function loadInvestmentIntents() {
+  try {
+    const res = await axios.get('/api/v1/investment/intents');
+    investmentIntents.value = res.data || [];
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+async function deleteInvestmentIntentRecord(intentId) {
+  if (!confirm('确定要删除这条投资意向记录吗？')) return;
+  loading.value = true;
+  try {
+    const res = await axios.delete(`/api/v1/investment/intents/${intentId}`);
+    loading.value = false;
+    if (res.data) {
+      triggerToast('投资意向记录已删除。', true);
+      loadInvestmentIntents();
+    }
+  } catch (err) {
+    loading.value = false;
+    console.error(err);
+    triggerToast('删除意向记录失败。');
   }
 }
 
@@ -3562,7 +3803,19 @@ onMounted(async () => {
                     :class="activeAdminTab === 'rwjg' ? 'bg-gradient-to-r from-neonRed/20 to-rose-500/10 text-neonRed border border-neonRed/30' : 'text-gray-400 hover:text-white'"
                     class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2">
               <i class="fa-solid fa-camera-retro"></i>
-              人文老村落回忆
+              人文景点
+            </button>
+            <button @click="activeAdminTab = 'spatial-villages'; loadSpatialVillages(); resetSpatialVillageForm()" 
+                    :class="activeAdminTab === 'spatial-villages' ? 'bg-gradient-to-r from-neonRed/20 to-rose-500/10 text-neonRed border border-neonRed/30' : 'text-gray-400 hover:text-white'"
+                    class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2">
+              <i class="fa-solid fa-tree-city"></i>
+              时空村落谱
+            </button>
+            <button @click="activeAdminTab = 'investment-parcels'; fetchInvestmentParcels(); loadInvestmentIntents(); resetInvestmentParcelForm()" 
+                    :class="activeAdminTab === 'investment-parcels' ? 'bg-gradient-to-r from-neonRed/20 to-rose-500/10 text-neonRed border border-neonRed/30' : 'text-gray-400 hover:text-white'"
+                    class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2">
+              <i class="fa-solid fa-handshake"></i>
+              招商引资
             </button>
             <button @click="activeAdminTab = 'ai-agent'" 
                     :class="activeAdminTab === 'ai-agent' ? 'bg-gradient-to-r from-neonRed/20 to-rose-500/10 text-neonRed border border-neonRed/30' : 'text-gray-400 hover:text-white'"
@@ -3588,8 +3841,132 @@ onMounted(async () => {
                   <i class="fa-solid fa-pen-to-square"></i> 数据点属性编辑器
                 </h4>
                 <span class="text-[9px] px-2 py-0.5 rounded bg-neonRed/10 border border-neonRed/25 text-neonRed font-bold">
-                  {{ (activeAdminTab === 'zdgc' || activeAdminTab === 'rwjg') && adminForm.id ? '编辑模式' : (activeAdminTab === 'merchant' && merchantForm.id ? '编辑模式' : (activeAdminTab === 'ai-agent' || activeAdminTab === 'citizen-reports' ? '监控模式' : '新增模式')) }}
+                  {{ (activeAdminTab === 'zdgc' || activeAdminTab === 'rwjg') && adminForm.id ? '编辑模式' : (activeAdminTab === 'merchant' && merchantForm.id ? '编辑模式' : (activeAdminTab === 'spatial-villages' && spatialVillageForm.id ? '编辑模式' : (activeAdminTab === 'investment-parcels' && investmentParcelForm.id ? '编辑模式' : (activeAdminTab === 'ai-agent' || activeAdminTab === 'citizen-reports' ? '监控模式' : '新增模式')))) }}
                 </span>
+              </div>
+
+              <!-- 时空老村庄表单 -->
+              <div v-if="activeAdminTab === 'spatial-villages'" class="space-y-4 text-left">
+                <div class="flex flex-col gap-1.5">
+                  <label class="text-[10px] text-textMuted uppercase font-extrabold tracking-wider">村落 ID (如 v_dawang)</label>
+                  <input type="text" v-model="spatialVillageForm.id" placeholder="如: v_dawang" :disabled="!!spatialVillageForm.id"
+                         class="w-full text-xs bg-black/40 border border-glassBorder rounded-xl px-4 py-2.5 text-white outline-none focus:border-neonRed disabled:opacity-50">
+                </div>
+                <div class="flex flex-col gap-1.5">
+                  <label class="text-[10px] text-textMuted uppercase font-extrabold tracking-wider">村落名称</label>
+                  <input type="text" v-model="spatialVillageForm.village_name" placeholder="请输入村庄名称"
+                         class="w-full text-xs bg-black/40 border border-glassBorder rounded-xl px-4 py-2.5 text-white outline-none focus:border-neonRed">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                  <div class="flex flex-col gap-1.5">
+                    <label class="text-[10px] text-textMuted uppercase font-extrabold tracking-wider">村落状态</label>
+                    <select v-model="spatialVillageForm.status"
+                            class="w-full text-xs bg-black/40 border border-glassBorder rounded-xl px-4 py-2.5 text-white outline-none focus:border-neonRed">
+                      <option :value="0" class="bg-darkBg">已拆迁腾退</option>
+                      <option :value="1" class="bg-darkBg">大规模拆迁中</option>
+                      <option :value="2" class="bg-darkBg">特色保留村落</option>
+                    </select>
+                  </div>
+                  <div class="flex flex-col gap-1.5">
+                    <label class="text-[10px] text-textMuted uppercase font-extrabold tracking-wider">预计/实际变迁年份</label>
+                    <input type="number" v-model="spatialVillageForm.plan_demolition_year" placeholder="如: 2018"
+                           class="w-full text-xs bg-black/40 border border-glassBorder rounded-xl px-4 py-2.5 text-white outline-none focus:border-neonRed">
+                  </div>
+                </div>
+                <div class="flex flex-col gap-1.5">
+                  <label class="text-[10px] text-textMuted uppercase font-extrabold tracking-wider">空间边界 (GeoJSON Polygon Coordinates 数组)</label>
+                  <textarea v-model="spatialVillageForm.geom_json" rows="3" placeholder="[[[lng, lat], [lng, lat], ...]]]"
+                            class="w-full text-xs bg-black/40 border border-glassBorder rounded-xl px-4 py-2.5 text-white outline-none focus:border-neonRed font-mono"></textarea>
+                </div>
+                <div class="flex flex-col gap-1.5">
+                  <label class="text-[10px] text-textMuted uppercase font-extrabold tracking-wider">村落历史沿革简介</label>
+                  <textarea v-model="spatialVillageForm.history" rows="4" placeholder="请输入村落的历史沿革介绍..."
+                            class="w-full text-xs bg-black/40 border border-glassBorder rounded-xl px-4 py-2.5 text-white outline-none focus:border-neonRed resize-none"></textarea>
+                </div>
+                <div class="flex gap-3 pt-2">
+                  <button @click="resetSpatialVillageForm" class="flex-1 py-3 bg-white/5 border border-glassBorder hover:bg-white/10 rounded-xl text-xs font-bold transition-all">
+                    重置
+                  </button>
+                  <button @click="saveSpatialVillageRecord" :disabled="loading" 
+                          class="flex-1 py-3 bg-gradient-to-r from-neonRed to-rose-600 border border-neonRed/20 hover:scale-[1.02] active:scale-98 text-white rounded-xl text-xs font-extrabold shadow-red-glow transition-all">
+                    {{ loading ? '存盘中...' : '确认保存村落' }}
+                  </button>
+                </div>
+              </div>
+
+              <!-- 招商引资地块表单 -->
+              <div v-if="activeAdminTab === 'investment-parcels'" class="space-y-4 text-left">
+                <div class="flex p-0.5 bg-black/40 border border-white/5 rounded-xl mb-2">
+                  <button @click="activeInvestmentSubTab = 'parcels'"
+                          :class="activeInvestmentSubTab === 'parcels' ? 'bg-white/10 text-neonRed font-extrabold' : 'text-gray-400 hover:text-white'"
+                          class="flex-1 py-2 rounded-lg text-xs transition-all">
+                    地块管理
+                  </button>
+                  <button @click="activeInvestmentSubTab = 'intents'"
+                          :class="activeInvestmentSubTab === 'intents' ? 'bg-white/10 text-neonRed font-extrabold' : 'text-gray-400 hover:text-white'"
+                          class="flex-1 py-2 rounded-lg text-xs transition-all">
+                    意向申请 ({{ investmentIntents.length }})
+                  </button>
+                </div>
+
+                <div v-if="activeInvestmentSubTab === 'parcels'" class="space-y-4">
+                  <div class="flex flex-col gap-1.5">
+                    <label class="text-[10px] text-textMuted uppercase font-extrabold tracking-wider">地块 ID (如 parcel_001)</label>
+                    <input type="text" v-model="investmentParcelForm.id" placeholder="如: parcel_001" :disabled="!!investmentParcelForm.id"
+                           class="w-full text-xs bg-black/40 border border-glassBorder rounded-xl px-4 py-2.5 text-white outline-none focus:border-neonRed disabled:opacity-50">
+                  </div>
+                  <div class="flex flex-col gap-1.5">
+                    <label class="text-[10px] text-textMuted uppercase font-extrabold tracking-wider">地块名称</label>
+                    <input type="text" v-model="investmentParcelForm.parcel_name" placeholder="请输入地块名称"
+                           class="w-full text-xs bg-black/40 border border-glassBorder rounded-xl px-4 py-2.5 text-white outline-none focus:border-neonRed">
+                  </div>
+                  <div class="grid grid-cols-2 gap-4">
+                    <div class="flex flex-col gap-1.5">
+                      <label class="text-[10px] text-textMuted uppercase font-extrabold tracking-wider">地块状态</label>
+                      <select v-model="investmentParcelForm.status"
+                              class="w-full text-xs bg-black/40 border border-glassBorder rounded-xl px-4 py-2.5 text-white outline-none focus:border-neonRed">
+                        <option :value="0" class="bg-darkBg">待出让</option>
+                        <option :value="1" class="bg-darkBg">洽谈中</option>
+                        <option :value="2" class="bg-darkBg">已出让</option>
+                      </select>
+                    </div>
+                    <div class="flex flex-col gap-1.5">
+                      <label class="text-[10px] text-textMuted uppercase font-extrabold tracking-wider">规划用途</label>
+                      <input type="text" v-model="investmentParcelForm.land_use" placeholder="如: 商业用地"
+                             class="w-full text-xs bg-black/40 border border-glassBorder rounded-xl px-4 py-2.5 text-white outline-none focus:border-neonRed">
+                    </div>
+                  </div>
+                  <div class="grid grid-cols-2 gap-4">
+                    <div class="flex flex-col gap-1.5">
+                      <label class="text-[10px] text-textMuted uppercase font-extrabold tracking-wider">占地面积 (㎡)</label>
+                      <input type="number" step="any" v-model="investmentParcelForm.area_sqm" placeholder="面积"
+                             class="w-full text-xs bg-black/40 border border-glassBorder rounded-xl px-4 py-2.5 text-white outline-none focus:border-neonRed">
+                    </div>
+                    <div class="flex flex-col gap-1.5">
+                      <label class="text-[10px] text-textMuted uppercase font-extrabold tracking-wider">规划容积率</label>
+                      <input type="number" step="any" v-model="investmentParcelForm.far" placeholder="容积率"
+                             class="w-full text-xs bg-black/40 border border-glassBorder rounded-xl px-4 py-2.5 text-white outline-none focus:border-neonRed">
+                    </div>
+                  </div>
+                  <div class="flex flex-col gap-1.5">
+                    <label class="text-[10px] text-textMuted uppercase font-extrabold tracking-wider">空间边界 (GeoJSON Polygon Coordinates 数组)</label>
+                    <textarea v-model="investmentParcelForm.geom_json" rows="3" placeholder="[[[lng, lat], [lng, lat], ...]]]"
+                              class="w-full text-xs bg-black/40 border border-glassBorder rounded-xl px-4 py-2.5 text-white outline-none focus:border-neonRed font-mono"></textarea>
+                  </div>
+                  <div class="flex gap-3 pt-2">
+                    <button @click="resetInvestmentParcelForm" class="flex-1 py-3 bg-white/5 border border-glassBorder hover:bg-white/10 rounded-xl text-xs font-bold transition-all">
+                      重置
+                    </button>
+                    <button @click="saveInvestmentParcelRecord" :disabled="loading" 
+                            class="flex-1 py-3 bg-gradient-to-r from-neonRed to-rose-600 border border-neonRed/20 hover:scale-[1.02] active:scale-98 text-white rounded-xl text-xs font-extrabold shadow-red-glow transition-all">
+                      {{ loading ? '存盘中...' : '确认保存地块' }}
+                    </button>
+                  </div>
+                </div>
+                <div v-else class="p-6 bg-black/30 border border-glassBorder rounded-2xl text-center flex flex-col items-center justify-center py-12 gap-2 text-textMuted">
+                  <i class="fa-solid fa-handshake text-3xl mb-2 text-rose-500"></i>
+                  <span class="text-xs">请在右侧列表切换到“意向申请审核”子页签以管理与查看所有提交的企业投资意向。</span>
+                </div>
               </div>
 
               <!-- A. 重点工程 / 人文老村 表单 -->
@@ -3857,17 +4234,102 @@ onMounted(async () => {
               <div class="flex justify-between items-center border-b border-white/5 pb-2">
                 <h4 class="text-sm font-extrabold text-white flex items-center gap-2">
                   <i class="fa-solid fa-list-ul"></i> 
-                  {{ activeAdminTab === 'ai-agent' ? 'AI 抓取待审核线索' : (activeAdminTab === 'citizen-reports' ? '市民城管反馈工单' : '数据库现有记录一览') }} 
-                  ({{ activeAdminTab === 'zdgc' ? projects.length : (activeAdminTab === 'merchant' ? merchants.length : (activeAdminTab === 'rwjg' ? villages.value.length : (activeAdminTab === 'ai-agent' ? aiCrawlResults.length : citizenReports.length))) }})
+                  {{ activeAdminTab === 'ai-agent' ? 'AI 抓取待审核线索' : (activeAdminTab === 'citizen-reports' ? '市民城管反馈工单' : (activeAdminTab === 'spatial-villages' ? '时空老村落列表' : (activeAdminTab === 'investment-parcels' ? (activeInvestmentSubTab === 'parcels' ? '招商引资地块库' : '商机投资意向申请') : '数据库现有记录一览'))) }} 
+                  ({{ activeAdminTab === 'zdgc' ? projects.length : (activeAdminTab === 'merchant' ? merchants.length : (activeAdminTab === 'rwjg' ? villages.value.length : (activeAdminTab === 'ai-agent' ? aiCrawlResults.length : (activeAdminTab === 'citizen-reports' ? citizenReports.length : (activeAdminTab === 'spatial-villages' ? spatialVillages.length : (activeInvestmentSubTab === 'parcels' ? investmentParcels.length : investmentIntents.length)))))) }})
                 </h4>
                 <span class="text-xs text-textMuted">
-                  {{ activeAdminTab === 'ai-agent' ? '审查并一键发布 AI 抓取出的工地情报' : (activeAdminTab === 'citizen-reports' ? '查看市民上报详情并在地图上交互定位' : '点击操作对数据进行实时持久化更新') }}
+                  {{ activeAdminTab === 'ai-agent' ? '审查并一键发布 AI 抓取出的工地情报' : (activeAdminTab === 'citizen-reports' ? '查看市民上报详情并在地图上交互定位' : (activeAdminTab === 'spatial-villages' ? '物理删除、在地图上定位或重新编辑老村落面要素' : (activeAdminTab === 'investment-parcels' ? '地块数据更新及意向投资申请列表管理' : '点击操作对数据进行实时持久化更新'))) }}
                 </span>
               </div>
 
               <!-- 数据列表滚动容器 -->
               <div class="flex-1 overflow-y-auto space-y-3 pr-2 border-none">
                 
+                <!-- 时空老村落列表 -->
+                <div v-if="activeAdminTab === 'spatial-villages'" class="space-y-2">
+                  <div v-if="spatialVillages.length === 0" class="py-12 text-center text-xs text-textMuted border border-dashed border-glassBorder rounded-xl">
+                    暂无村落空间数据
+                  </div>
+                  <div v-else v-for="v in spatialVillages" :key="v.properties.id" 
+                       class="flex items-center justify-between p-4 rounded-xl bg-black/40 border border-glassBorder hover:bg-white/5 transition-all text-xs text-gray-300 gap-4">
+                    <div class="flex items-center gap-3 min-w-0 text-left">
+                      <i class="fa-solid fa-tree-city text-emerald-400 text-sm flex-shrink-0 w-8 h-8 rounded-lg border border-glassBorder flex items-center justify-center bg-emerald-500/10"></i>
+                      <div class="flex flex-col min-w-0">
+                        <span class="font-bold text-white truncate text-sm">{{ v.properties.village_name }}</span>
+                        <span class="text-[10px] text-textMuted mt-1">ID: {{ v.properties.id }} | 变迁年份: {{ v.properties.plan_demolition_year || '保留' }} | 状态: {{ v.properties.status === 0 ? '已拆迁' : (v.properties.status === 1 ? '拆迁中' : '保留') }}</span>
+                      </div>
+                    </div>
+                    <div class="flex gap-2 flex-shrink-0">
+                      <button @click="editSpatialVillage(v)" class="px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/25 active:scale-95 text-blue-400 border border-blue-500/35 rounded-lg text-xs font-bold transition-all">
+                        编辑
+                      </button>
+                      <button @click="locateVillageOnMap(v)" class="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/25 active:scale-95 text-emerald-400 border border-emerald-500/35 rounded-lg text-xs font-bold transition-all">
+                        定位
+                      </button>
+                      <button @click="deleteSpatialVillageRecord(v.properties.id)" class="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/25 active:scale-95 text-rose-400 border border-rose-500/35 rounded-lg text-xs font-bold transition-all">
+                        删除
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 招商引资列表 -->
+                <div v-if="activeAdminTab === 'investment-parcels'" class="space-y-2">
+                  <!-- 地块库列表 -->
+                  <div v-if="activeInvestmentSubTab === 'parcels'" class="space-y-2">
+                    <div v-if="investmentParcels.length === 0" class="py-12 text-center text-xs text-textMuted border border-dashed border-glassBorder rounded-xl">
+                      暂无招商引资地块数据
+                    </div>
+                    <div v-else v-for="p in investmentParcels" :key="p.properties.id" 
+                         class="flex items-center justify-between p-4 rounded-xl bg-black/40 border border-glassBorder hover:bg-white/5 transition-all text-xs text-gray-300 gap-4">
+                      <div class="flex items-center gap-3 min-w-0 text-left">
+                        <i class="fa-solid fa-handshake text-amber-400 text-sm flex-shrink-0 w-8 h-8 rounded-lg border border-glassBorder flex items-center justify-center bg-amber-500/10"></i>
+                        <div class="flex flex-col min-w-0">
+                          <span class="font-bold text-white truncate text-sm">{{ p.properties.parcel_name }}</span>
+                          <span class="text-[10px] text-textMuted mt-1">ID: {{ p.properties.id }} | 用途: {{ p.properties.land_use }} | 面积: {{ p.properties.area_sqm }}㎡ | 状态: {{ p.properties.status === 0 ? '待出让' : (p.properties.status === 1 ? '洽谈中' : '已出让') }}</span>
+                        </div>
+                      </div>
+                      <div class="flex gap-2 flex-shrink-0">
+                        <button @click="editInvestmentParcel(p)" class="px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/25 active:scale-95 text-blue-400 border border-blue-500/35 rounded-lg text-xs font-bold transition-all">
+                          编辑
+                        </button>
+                        <button @click="locateParcelOnMap(p)" class="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/25 active:scale-95 text-amber-400 border border-amber-500/35 rounded-lg text-xs font-bold transition-all">
+                          定位
+                        </button>
+                        <button @click="deleteInvestmentParcelRecord(p.properties.id)" class="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/25 active:scale-95 text-rose-400 border border-rose-500/35 rounded-lg text-xs font-bold transition-all">
+                          删除
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 意向申请列表 -->
+                  <div v-else class="space-y-2">
+                    <div v-if="investmentIntents.length === 0" class="py-12 text-center text-xs text-textMuted border border-dashed border-glassBorder rounded-xl">
+                      暂无意向申请记录
+                    </div>
+                    <div v-else v-for="intent in investmentIntents" :key="intent.id" 
+                         class="p-4 rounded-xl border border-glassBorder bg-black/40 hover:bg-white/5 transition-all text-left space-y-2 text-xs">
+                      <div class="flex justify-between items-start gap-4">
+                        <div class="min-w-0">
+                          <h5 class="font-extrabold text-white text-sm truncate">{{ intent.company_name }}</h5>
+                          <p class="text-[10px] text-textMuted mt-0.5">意向地块: <span class="text-neonRed font-bold">{{ intent.parcel_name }}</span></p>
+                        </div>
+                        <button @click="deleteInvestmentIntentRecord(intent.id)" class="px-2.5 py-1 text-[10px] font-bold bg-rose-500/10 hover:bg-rose-500/25 text-rose-400 border border-rose-500/35 rounded-lg transition-all flex-shrink-0">
+                          删除意向
+                        </button>
+                      </div>
+                      <p class="text-gray-300 text-xs leading-relaxed bg-black/20 p-2.5 rounded-lg border border-white/5 whitespace-pre-wrap">
+                        {{ intent.intent_desc }}
+                      </p>
+                      <div class="flex justify-between items-center text-[10px] text-textMuted pt-1">
+                        <span>联系人: {{ intent.contact_person }} | 电话: {{ intent.contact_phone }}</span>
+                        <span>时间: {{ new Date(intent.created_at).toLocaleString() }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <!-- A. 重点工程列表 -->
                 <div v-if="activeAdminTab === 'zdgc'" class="space-y-2">
                   <div v-for="item in projects" :key="item.id" 

@@ -10,9 +10,9 @@ import os
 import math
 import requests
 
-from agents.crawling_agent import run_mock_crawl
-from agents.geocoding_agent import resolve_address_to_coords
-from agents.marketing_agent import generate_village_marketing_copy
+from crawling_agent import run_mock_crawl
+from geocoding_agent import resolve_address_to_coords
+from marketing_agent import generate_village_marketing_copy
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -118,6 +118,19 @@ def init_db():
         far REAL, -- 容积率 Floor Area Ratio
         geom_json TEXT NOT NULL,
         status INT DEFAULT 0 -- 0: 待出让, 1: 洽谈中, 2: 已出让
+    )
+    """)
+    
+    # 8. 创建招商引资意向表
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS investment_intents (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        parcel_id VARCHAR(64) NOT NULL,
+        company_name VARCHAR(255) NOT NULL,
+        contact_person VARCHAR(50) NOT NULL,
+        contact_phone VARCHAR(50) NOT NULL,
+        intent_desc TEXT NOT NULL,
+        created_at TEXT NOT NULL
     )
     """)
     
@@ -276,6 +289,23 @@ class InvestmentIntentSubmit(BaseModel):
 
 class CitizenReportStatusUpdate(BaseModel):
     status: int
+
+class SpatialVillageSubmit(BaseModel):
+    id: str
+    village_name: str
+    status: int
+    plan_demolition_year: Optional[int] = None
+    geom_json: str
+    history: Optional[str] = ""
+
+class InvestmentParcelSubmit(BaseModel):
+    id: str
+    parcel_name: str
+    land_use: Optional[str] = ""
+    area_sqm: Optional[float] = 0.0
+    far: Optional[float] = 0.0
+    geom_json: str
+    status: Optional[int] = 0
 
 # ==============================================================================
 # 既有 AI Agent 核心路由 (保留 100% 原始逻辑)
@@ -1019,8 +1049,136 @@ async def get_investment_parcels():
 
 @app.post("/api/v1/investment/intent")
 async def submit_investment_intent(req: InvestmentIntentSubmit):
-    # 这里我们只做模拟返回
-    return {"message": f"已收到贵司【{req.company_name}】的投资意向，招商专员将在 24 小时内与您联系！"}
+    created_at = datetime.now().isoformat()
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO investment_intents (parcel_id, company_name, contact_person, contact_phone, intent_desc, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (req.parcel_id.strip(), req.company_name.strip(), req.contact_person.strip(), req.contact_phone.strip(), req.intent_desc.strip(), created_at))
+        conn.commit()
+        conn.close()
+        return {"message": f"已收到贵司【{req.company_name}】的投资意向，招商专员将在 24 小时内与您联系！"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==============================================================================
+# 7. 新增：时空老村落/招商引资管理后台 CRUD 接口
+# ==============================================================================
+@app.post("/api/v1/spatial/villages")
+async def save_spatial_village(req: SpatialVillageSubmit):
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        # Check if village exists
+        cursor.execute("SELECT id FROM spatial_village_history WHERE id = ?", (req.id.strip(),))
+        exists = cursor.fetchone()
+        if exists:
+            cursor.execute("""
+                UPDATE spatial_village_history 
+                SET village_name = ?, status = ?, plan_demolition_year = ?, geom_json = ?, history = ?
+                WHERE id = ?
+            """, (req.village_name.strip(), req.status, req.plan_demolition_year, req.geom_json.strip(), req.history.strip(), req.id.strip()))
+        else:
+            cursor.execute("""
+                INSERT INTO spatial_village_history (id, village_name, status, plan_demolition_year, geom_json, history)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (req.id.strip(), req.village_name.strip(), req.status, req.plan_demolition_year, req.geom_json.strip(), req.history.strip()))
+        conn.commit()
+        conn.close()
+        return {"message": "村落空间数据保存成功！"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/v1/spatial/villages/{village_id}")
+async def delete_spatial_village(village_id: str):
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM spatial_village_history WHERE id = ?", (village_id,))
+        conn.commit()
+        conn.close()
+        return {"message": "村落空间数据已物理删除。"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/investment/parcels")
+async def save_investment_parcel(req: InvestmentParcelSubmit):
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        # Check if parcel exists
+        cursor.execute("SELECT id FROM investment_parcels WHERE id = ?", (req.id.strip(),))
+        exists = cursor.fetchone()
+        if exists:
+            cursor.execute("""
+                UPDATE investment_parcels 
+                SET parcel_name = ?, land_use = ?, area_sqm = ?, far = ?, geom_json = ?, status = ?
+                WHERE id = ?
+            """, (req.parcel_name.strip(), req.land_use.strip(), req.area_sqm, req.far, req.geom_json.strip(), req.status, req.id.strip()))
+        else:
+            cursor.execute("""
+                INSERT INTO investment_parcels (id, parcel_name, land_use, area_sqm, far, geom_json, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (req.id.strip(), req.parcel_name.strip(), req.land_use.strip(), req.area_sqm, req.far, req.geom_json.strip(), req.status))
+        conn.commit()
+        conn.close()
+        return {"message": "招商引资地块保存成功！"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/v1/investment/parcels/{parcel_id}")
+async def delete_investment_parcel(parcel_id: str):
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM investment_parcels WHERE id = ?", (parcel_id,))
+        conn.commit()
+        conn.close()
+        return {"message": "招商地块数据已物理删除。"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/investment/intents")
+async def get_investment_intents():
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT ii.id, ii.parcel_id, ii.company_name, ii.contact_person, ii.contact_phone, ii.intent_desc, ii.created_at, ip.parcel_name
+            FROM investment_intents ii
+            LEFT JOIN investment_parcels ip ON ii.parcel_id = ip.id
+            ORDER BY ii.id DESC
+        """)
+        rows = cursor.fetchall()
+        conn.close()
+        return [
+            {
+                "id": r[0],
+                "parcel_id": r[1],
+                "company_name": r[2],
+                "contact_person": r[3],
+                "contact_phone": r[4],
+                "intent_desc": r[5],
+                "created_at": r[6],
+                "parcel_name": r[7] or r[1]
+            } for r in rows
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/v1/investment/intents/{intent_id}")
+async def delete_investment_intent(intent_id: int):
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM investment_intents WHERE id = ?", (intent_id,))
+        conn.commit()
+        conn.close()
+        return {"message": "投资意向记录已删除。"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/v1/cultural/checkin")
 async def checkin_cultural_spot(spot_id: str = Query(...)):

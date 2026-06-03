@@ -17,6 +17,14 @@ export default defineConfig({
   server: {
     port: 5174,
     proxy: {
+      '/api/v1/investment': {
+        target: 'http://localhost:8000',
+        changeOrigin: true
+      },
+      '/api/v1/spatial': {
+        target: 'http://localhost:8000',
+        changeOrigin: true
+      },
       '/api': {
         target: 'http://localhost:8080',
         changeOrigin: true

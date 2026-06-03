@@ -1,6 +1,6 @@
 import requests
 import logging
-from agents.config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL
+from config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("marketing_agent")

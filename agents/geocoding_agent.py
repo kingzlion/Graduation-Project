@@ -2,7 +2,7 @@ import random
 import math
 import requests
 import logging
-from agents.config import BAIDU_MAP_AK
+from config import BAIDU_MAP_AK
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("geocoding_agent")

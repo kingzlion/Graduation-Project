@@ -1,8 +1,8 @@
 import time
 import requests
 import logging
-from agents.config import BACKEND_API_BASE, LLM_API_KEY, LLM_BASE_URL, LLM_MODEL
-from agents.geocoding_agent import resolve_address_to_coords
+from config import BACKEND_API_BASE, LLM_API_KEY, LLM_BASE_URL, LLM_MODEL
+from geocoding_agent import resolve_address_to_coords
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("crawling_agent")

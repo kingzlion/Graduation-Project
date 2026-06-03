@@ -364,7 +364,7 @@
       <text class="fab-icon">📷</text>
     </view>
 
-    <!-- 全民随手拍 弹窗 -->
+    <!-- 全民随手拍 弹窗（含图片上传） -->
     <view class="ai-modal-mask" v-if="showCitizenModal" @click="closeCitizenModal">
       <view class="ai-modal-card" @click.stop style="height: auto; max-height: 80vh;">
         <view class="ai-modal-header">
@@ -377,6 +377,16 @@
             <picker :value="citizenIssueIndex" :range="issueTypes" @change="onIssueTypeChange" class="picker-box">
               <view class="picker-text">{{ issueTypes[citizenIssueIndex] }}</view>
             </picker>
+          </view>
+          <view class="form-group">
+            <text class="form-label">拍照上传：</text>
+            <view class="upload-area" @click="chooseImage">
+              <image v-if="citizenImage.tempFilePath" :src="citizenImage.tempFilePath" mode="aspectFill" class="upload-preview"></image>
+              <view v-else class="upload-placeholder">
+                <text class="upload-icon">📸</text>
+                <text class="upload-text">点击拍照或选择相册</text>
+              </view>
+            </view>
           </view>
           <view class="form-group">
             <text class="form-label">详细描述：</text>
@@ -441,7 +451,7 @@ const showCitizenModal = ref(false);
 const showIntentModal = ref(false);
 const issueTypes = ['设施损坏', '环境脏乱', '美丽风景分享'];
 const citizenIssueIndex = ref(0);
-const citizenForm = ref({
+const citizenImage = ref({ tempFilePath: null, file: null });const citizenForm = ref({
   issue_type: '设施损坏',
   description: '',
   reporter_name: '热心市民',
@@ -1065,12 +1075,61 @@ const closeCitizenModal = () => showCitizenModal.value = false;
 
 const closeIntentModal = () => showIntentModal.value = false;
 
+const chooseImage = () => {
+  uni.showActionSheet({
+    itemList: ["拍照", "从相册选择"],
+    success: (res) => {
+      const source = res.tapIndex === 0 ? "camera" : "album";
+      uni.chooseImage({
+        count: 1,
+        sourceType: [source],
+        sizeType: ["compressed"],
+        success: (r) => {
+          citizenImage.value.tempFilePath = r.tempFilePaths[0];
+          citizenImage.value.file = r.tempFiles[0];
+        }
+      });
+    }
+  });
+};
+
 const submitCitizenReport = async () => {
   if (!citizenForm.value.description.trim()) {
-    return uni.showToast({ title: '请填写详细描述', icon: 'none' });
+    return uni.showToast({ title: "请填写详细描述", icon: "none" });
   }
+  uni.showLoading({ title: "上传中..." });
   try {
-    const res = await fastRequest({
+    const res = await new Promise((resolve, reject) => {
+      uni.uploadFile({
+        url: "http://localhost:8080/api/citizen/report",
+        filePath: citizenImage.value.tempFilePath,
+        name: "image",
+        formData: {
+          description: citizenForm.value.description,
+          issueType: citizenForm.value.issue_type,
+          reporterName: citizenForm.value.reporter_name,
+          x: citizenForm.value.x,
+          y: citizenForm.value.y
+        },
+        success: (r) => resolve(r),
+        fail: (e) => reject(e)
+      });
+    });
+    uni.hideLoading();
+    const data = typeof res.data === "string" ? JSON.parse(res.data) : res.data;
+    if (data.code === 200) {
+      uni.showToast({ title: "上报成功，感谢支持！", icon: "success" });
+      showCitizenModal.value = false;
+      citizenForm.value.description = "";
+      citizenImage.value = { tempFilePath: null, file: null };
+    } else {
+      uni.showToast({ title: data.message || "上报失败", icon: "none" });
+    }
+  } catch(e) {
+    uni.hideLoading();
+    uni.showToast({ title: "网络异常，请稍后重试", icon: "none" });
+  }
+};    const res = await fastRequest({
       url: '/citizen/report',
       method: 'POST',
       data: citizenForm.value
@@ -2392,4 +2451,34 @@ onMounted(() => {
   box-shadow: 0 4rpx 10rpx rgba(0,0,0,0.1);
 }
 
-</style>
+
+/* 随手拍 - 图片上传样式 */
+.upload-area {
+  width: 100%;
+  height: 160px;
+  border: 2px dashed rgba(255,255,255,0.15);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.03);
+  cursor: pointer;
+}
+.upload-preview {
+  width: 100%;
+  height: 100%;
+}
+.upload-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.upload-icon {
+  font-size: 36px;
+}
+.upload-text {
+  font-size: 13px;
+  color: rgba(255,255,255,0.4);
+}</style>

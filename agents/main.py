@@ -274,6 +274,9 @@ class InvestmentIntentSubmit(BaseModel):
     contact_phone: str
     intent_desc: str
 
+class CitizenReportStatusUpdate(BaseModel):
+    status: int
+
 # ==============================================================================
 # 既有 AI Agent 核心路由 (保留 100% 原始逻辑)
 # ==============================================================================
@@ -946,6 +949,43 @@ async def submit_citizen_report(req: CitizenReportSubmit):
         raise HTTPException(status_code=500, detail=f"上报失败: {str(e)}")
         
     return {"message": "随手拍上报成功，感谢您为智慧城市建设贡献力量！"}
+
+@app.get("/api/v1/citizen/reports")
+async def get_citizen_reports():
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, issue_type, description, reporter_name, contact_phone, x, y, status, created_at FROM citizen_reports ORDER BY id DESC")
+        rows = cursor.fetchall()
+        conn.close()
+        return [
+            {
+                "id": r[0],
+                "issue_type": r[1],
+                "description": r[2],
+                "reporter_name": r[3],
+                "contact_phone": r[4],
+                "x": r[5],
+                "y": r[6],
+                "status": r[7],
+                "created_at": r[8]
+            }
+            for r in rows
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/citizen/reports/{report_id}/status")
+async def update_citizen_report_status(report_id: int, req: CitizenReportStatusUpdate):
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("UPDATE citizen_reports SET status = ? WHERE id = ?", (req.status, report_id))
+        conn.commit()
+        conn.close()
+        return {"message": "工单状态更新成功！"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/v1/investment/parcels")
 async def get_investment_parcels():

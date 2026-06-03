@@ -189,6 +189,9 @@ let mainRoadLayer = null  // quanjie.json gold
 let r1LineLayer = null    // quanjie.json dashed
 let villagesLayer = null  // villages GeoJSON layer
 let investmentParcelsLayer = null // investment parcels GeoJSON layer
+const citizenReports = ref([])
+const citizenImageFile = ref(null)
+const citizenImagePreview = ref('')
 
 // 规划图层显示隐藏控制器 Toggle Controls
 const layerToggles = reactive({
@@ -597,17 +600,59 @@ async function submitCitizenReport() {
     triggerToast('❌ 请填写上报描述内容！');
     return;
   }
+  const formData = new FormData();
+  formData.append('description', citizenForm.value.description);
+  formData.append('issueType', citizenForm.value.issue_type);
+  formData.append('reporterName', citizenForm.value.reporter_name);
+  formData.append('x', citizenForm.value.x);
+  formData.append('y', citizenForm.value.y);
+  if (citizenImageFile.value) {
+    formData.append('image', citizenImageFile.value);
+  }
   try {
-    const res = await axios.post('http://localhost:8000/api/v1/citizen/report', citizenForm.value);
-    if (res.data) {
-      triggerToast('🎉 ' + res.data.message, true);
+    const res = await axios.post('/api/citizen/report', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    if (res.data.code === 200) {
+      triggerToast('📸 上报成功，感谢支持！', true);
       showCitizenModal.value = false;
       citizenForm.value.description = '';
+      citizenImageFile.value = null;
+      citizenImagePreview.value = '';
+      loadCitizenReports();
+    } else {
+      triggerToast(res.data.message || '上报失败');
     }
   } catch (err) {
     console.error(err);
     triggerToast('❌ 随手拍上报失败，请检查网络！');
   }
+}
+function onCitizenImageChange(e) {
+  const file = e.target.files[0];
+  if (file) {
+    citizenImageFile.value = file;
+    const reader = new FileReader();
+    reader.onload = (ev) => { citizenImagePreview.value = ev.target.result; };
+    reader.readAsDataURL(file);
+  }
+}
+async function loadCitizenReports() {
+  try {
+    const res = await axios.get('/api/citizen/list');
+    if (res.data.code === 200) {
+      citizenReports.value = res.data.data || [];
+    }
+  } catch(e) {}
+}
+function openCitizenModal() {
+  if (mapInstance) {
+    const view = mapInstance.getView();
+    const center = toLonLat(view.getCenter());
+    citizenForm.value.x = center[0].toFixed(6);
+    citizenForm.value.y = center[1].toFixed(6);
+  }
+  showCitizenModal.value = true;
 }
 
 const showInvestmentIntentModal = ref(false)
@@ -621,7 +666,7 @@ const investmentIntentForm = ref({
 
 async function fetchInvestmentParcels() {
   try {
-    const res = await axios.get('http://localhost:8000/api/v1/investment/parcels');
+    const res = await axios.get('/api/v1/investment/parcels');
     if (res.data && res.data.features) {
       investmentParcels.value = res.data.features;
       if (investmentParcelsLayer) {
@@ -645,7 +690,7 @@ async function submitInvestmentIntent() {
     return;
   }
   try {
-    const res = await axios.post('http://localhost:8000/api/v1/investment/intent', investmentIntentForm.value);
+    const res = await axios.post('/api/v1/investment/intent', investmentIntentForm.value);
     if (res.data) {
       triggerToast('🎉 ' + res.data.message, true);
       showInvestmentIntentModal.value = false;
@@ -682,8 +727,160 @@ function openAdminConsole() {
     activeAdminTab.value = 'zdgc';
     resetAdminForm();
     resetMerchantForm();
+    loadCitizenReportsFromAgent(); // 默认在打开控制台时拉取市民工单
   });
 }
+
+// ==========================================
+// AI Ingestion and Geocoding SandBox Methods
+// ==========================================
+const aiCrawlLoading = ref(false)
+const aiCrawlResults = ref([])
+const customAddressToGeocode = ref('')
+const geocodedResult = ref(null)
+const selectedCitizenReport = ref(null)
+
+async function runAiCrawl() {
+  aiCrawlLoading.value = true;
+  aiCrawlResults.value = [];
+  try {
+    const res = await axios.post('http://localhost:8000/agent/crawl');
+    if (res.data) {
+      aiCrawlResults.value = res.data;
+      triggerToast(`🎉 AI 抓取成功！共捕获到 ${res.data.length} 条工程数据线索。`, true);
+    }
+  } catch (e) {
+    console.error(e);
+    triggerToast('❌ AI 抓取失败，请检查 Python FastAPI 服务是否正常运行！');
+  } finally {
+    aiCrawlLoading.value = false;
+  }
+}
+
+async function geocodeCustomAddress() {
+  if (!customAddressToGeocode.value.trim()) {
+    triggerToast('请输入待解析的中文文本地址！');
+    return;
+  }
+  try {
+    const res = await axios.get('http://localhost:8000/agent/geocode', {
+      params: { address: customAddressToGeocode.value.trim() }
+    });
+    if (res.data) {
+      geocodedResult.value = res.data;
+      triggerToast('🎉 空间解析成功！脱敏坐标已计算完毕。', true);
+    }
+  } catch (e) {
+    console.error(e);
+    triggerToast('❌ 空间解析失败，请确保地址包含有效的地标。');
+  }
+}
+
+function fillGeocodedCoordsToForm() {
+  if (!geocodedResult.value) return;
+  adminForm.id = 'ai_' + Date.now().toString().slice(-6);
+  adminForm.name = geocodedResult.value.address;
+  adminForm.x = String(geocodedResult.value.longitude);
+  adminForm.y = String(geocodedResult.value.latitude);
+  adminForm.jieshao = `该地块由 AI 空间解析模块自动转换。原始输入地址：${geocodedResult.value.address}`;
+  activeAdminTab.value = 'zdgc';
+  triggerToast('坐标与地名已填入重点工程表单中。');
+}
+
+function fillCrawlLeadToForm(lead) {
+  adminForm.id = 'ai_' + Date.now().toString().slice(-6);
+  adminForm.name = lead.name;
+  adminForm.x = String(lead.x);
+  adminForm.y = String(lead.y);
+  adminForm.jieshao = lead.jieshao;
+  adminForm.src = lead.src || '/images/zdgc/10.jpg';
+  adminForm.zoom = lead.zoom || 13;
+  editType.value = 'zdgc';
+  activeAdminTab.value = 'zdgc';
+  triggerToast('线索已加载到编辑器。请补充其余内容后点击保存！');
+}
+
+async function approveAndPublishLead(lead) {
+  try {
+    loading.value = true;
+    const payload = {
+      id: 'ai_' + Date.now().toString().slice(-6),
+      name: lead.name,
+      x: String(lead.x),
+      y: String(lead.y),
+      zoom: lead.zoom || 13,
+      src: lead.src || '/images/zdgc/10.jpg',
+      jieshao: lead.jieshao
+    };
+    const res = await axios.post('/manage/zdgc', payload);
+    if (res.data.code === 200) {
+      triggerToast(`🎉 【${lead.name}】已成功审核上架至 H2 数据库！`, true);
+      fetchProjects();
+      aiCrawlResults.value = aiCrawlResults.value.filter(item => item.name !== lead.name);
+    } else {
+      triggerToast(res.data.message || '保存失败。');
+    }
+  } catch (e) {
+    console.error(e);
+    triggerToast('❌ 发布失败，请检查 Java 后端是否正常运行。');
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function loadCitizenReportsFromAgent() {
+  try {
+    const res = await axios.get('http://localhost:8000/api/v1/citizen/reports');
+    citizenReports.value = res.data || [];
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+async function updateReportStatus(reportId, newStatus) {
+  try {
+    const res = await axios.post(`http://localhost:8000/api/v1/citizen/reports/${reportId}/status`, {
+      status: newStatus
+    });
+    triggerToast(res.data.message || '状态更新成功！', true);
+    await loadCitizenReportsFromAgent();
+  } catch (e) {
+    console.error(e);
+    triggerToast('❌ 更新状态失败。');
+  }
+}
+
+function locateReportOnMap(report) {
+  if (!mapInstance || !popupOverlay) return;
+  const coords = fromLonLat([parseFloat(report.x), parseFloat(report.y)]);
+  
+  const popupTitle = document.getElementById('popup-title');
+  const popupText = document.getElementById('popup-text');
+  if (popupTitle && popupText) {
+    const statusLabel = report.status === 0 ? '🔴 待处理' : (report.status === 1 ? '🟡 处理中' : '🟢 已解决');
+    popupTitle.innerHTML = `⚠️ 市民城管随手拍`;
+    popupText.innerHTML = `
+      <div class="space-y-1 text-[11px] leading-relaxed text-gray-300">
+        <div class="font-extrabold text-white text-xs">问题: ${report.issue_type}</div>
+        <div><strong>详情:</strong> ${report.description}</div>
+        <div><strong>上报人:</strong> ${report.reporter_name} (${report.contact_phone || '无'})</div>
+        <div><strong>状态:</strong> ${statusLabel}</div>
+        <div class="text-[9px] text-gray-500 mt-1">${report.created_at.substring(0, 16).replace('T', ' ')}</div>
+      </div>
+    `;
+    popupOverlay.setPosition(coords);
+  }
+  
+  mapInstance.getView().animate({
+    center: coords,
+    zoom: 16,
+    duration: 1200
+  });
+  
+  showAdminModal.value = false;
+  triggerToast(`📍 正在定位市民随手拍事件：[${report.issue_type}]`);
+}
+
 
 // 13. 保存数据 (重点工程 / 人文景观)
 async function saveAdminRecord() {
@@ -1221,6 +1418,9 @@ watch(activeModule, (val) => {
   }
   if (val === 'investment') {
     fetchInvestmentParcels();
+  }
+  if (val === 'citizen_report') {
+    loadCitizenReports();
   }
   isAudioPlaying.value = false;
 });
@@ -2237,15 +2437,35 @@ onMounted(async () => {
 
       <!-- ==================== 5.X 全民随手拍 Citizen Report ==================== -->
       <div v-if="activeModule === 'citizen_report'" class="flex-1 flex flex-col overflow-hidden">
-        <div class="p-6 border-b border-white/5">
-          <h3 class="text-lg font-extrabold text-neonCyan flex items-center gap-2">
-            <i class="fa-solid fa-camera"></i> 全民随手拍
-          </h3>
-          <p class="text-xs text-textMuted mt-1">智慧城管，全民共建。请直接在地图上点击位置以上报损坏设施或分享美景。</p>
+        <div class="p-6 border-b border-white/5 flex justify-between items-center">
+          <div>
+            <h3 class="text-lg font-extrabold text-neonCyan flex items-center gap-2">
+              <i class="fa-solid fa-camera"></i> 全民随手拍
+            </h3>
+            <p class="text-xs text-textMuted mt-1">点击地图位置上报，或在下方浏览已上报的随手拍。</p>
+          </div>
+          <button @click="openCitizenModal"
+                  class="px-4 py-2 bg-neonCyan/10 border border-neonCyan/30 rounded-lg text-xs font-bold text-neonCyan hover:bg-neonCyan/20 transition-all">
+            <i class="fa-solid fa-plus mr-1"></i> 新增上报
+          </button>
         </div>
-        <div class="flex-1 p-6 flex flex-col items-center justify-center text-center">
+        <div class="flex-1 overflow-y-auto p-4 space-y-3" v-if="citizenReports.length">
+          <div v-for="r in citizenReports" :key="r.id"
+               class="p-3 rounded-xl border border-glassBorder bg-white/2 flex gap-3">
+            <img v-if="r.imageUrl" :src="r.imageUrl" class="w-20 h-20 object-cover rounded-lg shrink-0">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-neonCyan/10 text-neonCyan">{{ r.issueType }}</span>
+                <span class="text-[10px] text-gray-500">{{ r.reporterName }}</span>
+              </div>
+              <p class="text-xs text-gray-300 line-clamp-2">{{ r.description }}</p>
+              <p class="text-[10px] text-gray-600 mt-1">{{ r.createdAt }}</p>
+            </div>
+          </div>
+        </div>
+        <div v-else class="flex-1 p-6 flex flex-col items-center justify-center text-center">
           <i class="fa-solid fa-map-location-dot text-4xl text-gray-600 mb-4 animate-pulse"></i>
-          <p class="text-gray-400 text-sm">请在左侧地图中点击需要上报的位置坐标。</p>
+          <p class="text-gray-400 text-sm">请在左侧地图中点击，或点击上方按钮开始上报。</p>
         </div>
       </div>
 
@@ -3186,6 +3406,19 @@ onMounted(async () => {
               <label class="block text-xs text-gray-400 mb-1">详细描述 *</label>
               <textarea v-model="citizenForm.description" rows="3" class="w-full bg-white/5 border border-glassBorder rounded px-3 py-2 text-sm text-white outline-none focus:border-neonCyan" placeholder="请描述具体情况..."></textarea>
             </div>
+            <div>
+              <label class="block text-xs text-gray-400 mb-1">上传图片（可选）</label>
+              <div @click="document.getElementById('citizenImageInput').click()" class="w-full h-32 border-2 border-dashed border-white/10 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-neonCyan/50 transition-colors bg-white/3">
+                <template v-if="citizenImagePreview">
+                  <img :src="citizenImagePreview" class="w-full h-full object-cover rounded-lg">
+                </template>
+                <template v-else>
+                  <i class="fa-solid fa-camera text-2xl text-gray-500 mb-2"></i>
+                  <span class="text-xs text-gray-500">点击上传照片</span>
+                </template>
+              </div>
+              <input id="citizenImageInput" type="file" accept="image/*" @change="onCitizenImageChange" class="hidden">
+            </div>
             <button @click="submitCitizenReport" class="w-full bg-neonCyan hover:bg-cyan-400 text-black font-bold py-2.5 rounded shadow-[0_0_15px_rgba(0,229,255,0.4)]">
               提交上报
             </button>
@@ -3315,21 +3548,33 @@ onMounted(async () => {
           <div class="flex gap-2 p-1 bg-black/40 border border-glassBorder rounded-2xl w-fit">
             <button @click="activeAdminTab = 'zdgc'; resetAdminForm()" 
                     :class="activeAdminTab === 'zdgc' ? 'bg-gradient-to-r from-neonRed/20 to-rose-500/10 text-neonRed border border-neonRed/30' : 'text-gray-400 hover:text-white'"
-                    class="px-6 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2">
+                    class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2">
               <i class="fa-solid fa-tower-observation"></i>
-              重点基建工程 (`spatial_project`)
+              重点基建工程
             </button>
             <button @click="activeAdminTab = 'merchant'; resetMerchantForm()" 
                     :class="activeAdminTab === 'merchant' ? 'bg-gradient-to-r from-neonRed/20 to-rose-500/10 text-neonRed border border-neonRed/30' : 'text-gray-400 hover:text-white'"
-                    class="px-6 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2">
+                    class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2">
               <i class="fa-solid fa-truck-ramp-box"></i>
-              商用供应链商户 (`biz_merchant`)
+              商用供应链商户
             </button>
             <button @click="activeAdminTab = 'rwjg'; resetAdminForm()" 
                     :class="activeAdminTab === 'rwjg' ? 'bg-gradient-to-r from-neonRed/20 to-rose-500/10 text-neonRed border border-neonRed/30' : 'text-gray-400 hover:text-white'"
-                    class="px-6 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2">
+                    class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2">
               <i class="fa-solid fa-camera-retro"></i>
-              人文回忆老村落 (`RWJG`)
+              人文老村落回忆
+            </button>
+            <button @click="activeAdminTab = 'ai-agent'" 
+                    :class="activeAdminTab === 'ai-agent' ? 'bg-gradient-to-r from-neonRed/20 to-rose-500/10 text-neonRed border border-neonRed/30' : 'text-gray-400 hover:text-white'"
+                    class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2">
+              <i class="fa-solid fa-robot text-neonRed animate-pulse"></i>
+              AI 抓取与空间解析
+            </button>
+            <button @click="activeAdminTab = 'citizen-reports'; loadCitizenReports()" 
+                    :class="activeAdminTab === 'citizen-reports' ? 'bg-gradient-to-r from-neonRed/20 to-rose-500/10 text-neonRed border border-neonRed/30' : 'text-gray-400 hover:text-white'"
+                    class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2">
+              <i class="fa-solid fa-bullhorn"></i>
+              市民城管随手拍
             </button>
           </div>
 
@@ -3343,7 +3588,7 @@ onMounted(async () => {
                   <i class="fa-solid fa-pen-to-square"></i> 数据点属性编辑器
                 </h4>
                 <span class="text-[9px] px-2 py-0.5 rounded bg-neonRed/10 border border-neonRed/25 text-neonRed font-bold">
-                  {{ (activeAdminTab === 'zdgc' && adminForm.id) || (activeAdminTab === 'rwjg' && adminForm.id) || (activeAdminTab === 'merchant' && merchantForm.id) ? '编辑模式' : '新增模式' }}
+                  {{ (activeAdminTab === 'zdgc' || activeAdminTab === 'rwjg') && adminForm.id ? '编辑模式' : (activeAdminTab === 'merchant' && merchantForm.id ? '编辑模式' : (activeAdminTab === 'ai-agent' || activeAdminTab === 'citizen-reports' ? '监控模式' : '新增模式')) }}
                 </span>
               </div>
 
@@ -3507,6 +3752,104 @@ onMounted(async () => {
                 </div>
               </div>
 
+              <!-- C. 在线地理编码 (Geocoding) 沙盒 -->
+              <div v-if="activeAdminTab === 'ai-agent'" class="space-y-4 text-left">
+                <div class="p-4 bg-white/5 border border-glassBorder rounded-xl text-xs leading-relaxed text-gray-400">
+                  <span class="text-white font-extrabold flex items-center gap-1.5 mb-1.5">
+                    <i class="fa-solid fa-circle-info text-neonRed animate-pulse"></i> 什么是 Geocoding 地理编码？
+                  </span>
+                  AI 智能体抓取新闻后，只有文本地址（如“容西组团”），无法直接在地图打点。本模块调用 Geocoding API 进行空间解析，将中文地址转化为经纬度，并加入合规偏差。
+                </div>
+
+                <div class="flex flex-col gap-1.5 mt-2">
+                  <label class="text-[10px] text-textMuted uppercase font-extrabold tracking-wider">要解析的文本地址</label>
+                  <input type="text" v-model="customAddressToGeocode" placeholder="例如: 雄安新区雄安市民服务中心" 
+                         class="w-full text-xs bg-black/40 border border-glassBorder rounded-xl px-4 py-2.5 text-white outline-none focus:border-neonRed">
+                </div>
+
+                <button @click="geocodeCustomAddress"
+                        class="w-full py-3 bg-white/5 border border-glassBorder hover:bg-white/10 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5">
+                  <i class="fa-solid fa-magnifying-glass-location text-neonRed"></i>
+                  唤醒地名解析 Agent
+                </button>
+
+                <!-- 解析结果面板 -->
+                <div v-if="geocodedResult" class="p-4 bg-black/50 border border-glassBorder rounded-xl space-y-3">
+                  <div class="text-xs font-bold text-white border-b border-white/5 pb-1">Geocoding 运行报告</div>
+                  <div class="grid grid-cols-2 gap-y-2 text-xs">
+                    <div class="text-textMuted">输入地名：</div>
+                    <div class="text-white font-semibold truncate">{{ geocodedResult.address }}</div>
+                    <div class="text-textMuted">解析经度 X：</div>
+                    <div class="text-neonCyan font-mono font-semibold">{{ geocodedResult.longitude }}</div>
+                    <div class="text-textMuted">解析纬度 Y：</div>
+                    <div class="text-neonCyan font-mono font-semibold">{{ geocodedResult.latitude }}</div>
+                    <div class="text-textMuted">坐标系：</div>
+                    <div class="text-emerald-400 font-semibold">{{ geocodedResult.coordinate_system }}</div>
+                    <div class="text-textMuted">安全脱敏：</div>
+                    <div class="text-amber-400 font-semibold">已应用 (随机偏置)</div>
+                  </div>
+                  <button @click="fillGeocodedCoordsToForm"
+                          class="w-full py-2.5 bg-gradient-to-r from-neonRed/20 to-rose-600/20 border border-neonRed/30 hover:scale-[1.02] active:scale-98 text-neonRed rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-1">
+                    <i class="fa-solid fa-copy"></i> 将此坐标填充至新增表单
+                  </button>
+                </div>
+              </div>
+
+              <!-- D. 市民城管工单详情 -->
+              <div v-if="activeAdminTab === 'citizen-reports'" class="space-y-4 text-left">
+                <div v-if="selectedCitizenReport" class="space-y-4">
+                  <div class="p-4 bg-black/40 border border-glassBorder rounded-xl space-y-3">
+                    <div class="text-xs font-bold text-white border-b border-white/5 pb-1.5 flex justify-between items-center">
+                      <span>工单详情 [ID: {{ selectedCitizenReport.id }}]</span>
+                      <span :class="selectedCitizenReport.status === 0 ? 'text-red-400 bg-red-400/10 border-red-400/20' : (selectedCitizenReport.status === 1 ? 'text-amber-400 bg-amber-400/10 border-amber-400/20' : 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20')"
+                            class="px-2 py-0.5 rounded border text-[9px] font-extrabold">
+                        {{ selectedCitizenReport.status === 0 ? '待处理' : (selectedCitizenReport.status === 1 ? '处理中' : '已解决') }}
+                      </span>
+                    </div>
+
+                    <div class="text-xs space-y-2 text-gray-300">
+                      <div><strong class="text-textMuted">问题类型:</strong> {{ selectedCitizenReport.issue_type }}</div>
+                      <div><strong class="text-textMuted">事件描述:</strong> {{ selectedCitizenReport.description }}</div>
+                      <div><strong class="text-textMuted">上报市民:</strong> {{ selectedCitizenReport.reporter_name }}</div>
+                      <div><strong class="text-textMuted">联系电话:</strong> {{ selectedCitizenReport.contact_phone || '无' }}</div>
+                      <div><strong class="text-textMuted">上报坐标:</strong> {{ selectedCitizenReport.x }}, {{ selectedCitizenReport.y }}</div>
+                      <div><strong class="text-textMuted">上报时间:</strong> {{ selectedCitizenReport.created_at.substring(0, 16).replace('T', ' ') }}</div>
+                    </div>
+                  </div>
+
+                  <!-- 工单处置操作 -->
+                  <div class="space-y-2">
+                    <label class="text-[10px] text-textMuted uppercase font-extrabold tracking-wider">工单流转处置</label>
+                    <div class="grid grid-cols-3 gap-2">
+                      <button @click="updateReportStatus(selectedCitizenReport.id, 0); selectedCitizenReport.status = 0"
+                              :class="selectedCitizenReport.status === 0 ? 'bg-red-500/20 text-red-400 border-red-500/40' : 'bg-white/3 text-gray-400 border-white/5'"
+                              class="py-2.5 border rounded-xl text-xs font-bold transition-all">
+                        待处理
+                      </button>
+                      <button @click="updateReportStatus(selectedCitizenReport.id, 1); selectedCitizenReport.status = 1"
+                              :class="selectedCitizenReport.status === 1 ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' : 'bg-white/3 text-gray-400 border-white/5'"
+                              class="py-2.5 border rounded-xl text-xs font-bold transition-all">
+                        处理中
+                      </button>
+                      <button @click="updateReportStatus(selectedCitizenReport.id, 2); selectedCitizenReport.status = 2"
+                              :class="selectedCitizenReport.status === 2 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-white/3 text-gray-400 border-white/5'"
+                              class="py-2.5 border rounded-xl text-xs font-bold transition-all">
+                        已解决
+                      </button>
+                    </div>
+                  </div>
+
+                  <button @click="locateReportOnMap(selectedCitizenReport)"
+                          class="w-full py-3 bg-gradient-to-r from-neonRed to-rose-600 hover:scale-[1.02] active:scale-98 text-white rounded-xl text-xs font-extrabold shadow-red-glow transition-all flex items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-map-location-dot"></i>
+                    在 WebGIS 地图上平滑飞行定位
+                  </button>
+                </div>
+                <div v-else class="py-12 text-center text-xs text-textMuted border border-dashed border-glassBorder rounded-xl">
+                  请在右侧列表中选择一条市民反馈工单进行处理与定位。
+                </div>
+              </div>
+
             </div>
 
             <!-- 右栏：现有实体记录列表 (Glass Card) -->
@@ -3514,9 +3857,12 @@ onMounted(async () => {
               <div class="flex justify-between items-center border-b border-white/5 pb-2">
                 <h4 class="text-sm font-extrabold text-white flex items-center gap-2">
                   <i class="fa-solid fa-list-ul"></i> 
-                  数据库现有记录一览 ({{ activeAdminTab === 'zdgc' ? projects.length : (activeAdminTab === 'merchant' ? merchants.length : villages.length) }})
+                  {{ activeAdminTab === 'ai-agent' ? 'AI 抓取待审核线索' : (activeAdminTab === 'citizen-reports' ? '市民城管反馈工单' : '数据库现有记录一览') }} 
+                  ({{ activeAdminTab === 'zdgc' ? projects.length : (activeAdminTab === 'merchant' ? merchants.length : (activeAdminTab === 'rwjg' ? villages.value.length : (activeAdminTab === 'ai-agent' ? aiCrawlResults.length : citizenReports.length))) }})
                 </h4>
-                <span class="text-xs text-textMuted">点击操作对数据进行实时持久化更新</span>
+                <span class="text-xs text-textMuted">
+                  {{ activeAdminTab === 'ai-agent' ? '审查并一键发布 AI 抓取出的工地情报' : (activeAdminTab === 'citizen-reports' ? '查看市民上报详情并在地图上交互定位' : '点击操作对数据进行实时持久化更新') }}
+                </span>
               </div>
 
               <!-- 数据列表滚动容器 -->
@@ -3601,6 +3947,86 @@ onMounted(async () => {
                       </button>
                       <button @click="deleteMerchantRecord(item.id)" class="px-2.5 py-1.5 bg-rose-500/10 hover:bg-rose-500/25 active:scale-95 text-rose-400 border border-rose-500/35 rounded-lg text-xs font-bold transition-all">
                         删除
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- D. AI 抓取待审核列表 -->
+                <div v-if="activeAdminTab === 'ai-agent'" class="space-y-4">
+                  <!-- AI 控制头栏 -->
+                  <div class="p-5 bg-black/40 border border-glassBorder rounded-xl flex items-center justify-between gap-4">
+                    <div class="text-left">
+                      <div class="font-extrabold text-sm text-white flex items-center gap-1.5">
+                        <i class="fa-solid fa-gears text-neonRed"></i> AI 招投标数据情报官 Agent
+                      </div>
+                      <p class="text-[10px] text-textMuted mt-1">智能分析官方招标网站，并自动执行地名解析与脱敏打点流水线</p>
+                    </div>
+                    <button @click="runAiCrawl" :disabled="aiCrawlLoading"
+                            class="px-5 py-2.5 bg-gradient-to-r from-neonRed to-rose-600 border border-neonRed/20 hover:scale-[1.02] active:scale-98 disabled:opacity-50 text-white rounded-xl text-xs font-extrabold shadow-red-glow transition-all flex items-center gap-2">
+                      <i v-if="aiCrawlLoading" class="fa-solid fa-spinner animate-spin"></i>
+                      <i v-else class="fa-solid fa-robot"></i>
+                      {{ aiCrawlLoading ? '正在分析招标公告...' : '立即唤醒 AI 抓取' }}
+                    </button>
+                  </div>
+
+                  <!-- 结果列表 -->
+                  <div v-if="aiCrawlResults.length === 0" class="py-16 text-center text-xs text-textMuted border border-dashed border-glassBorder rounded-xl">
+                    <i class="fa-solid fa-inbox text-2xl mb-2 text-glassBorder block"></i>
+                    暂无采集线索，请点击右上方按钮唤醒 AI 智能体抓取最新招投标数据
+                  </div>
+                  <div v-else class="space-y-2.5">
+                    <div v-for="item in aiCrawlResults" :key="item.name"
+                         class="p-4 rounded-xl bg-black/40 border border-glassBorder hover:bg-white/5 transition-all text-xs text-gray-300 flex flex-col gap-3 text-left">
+                      <div class="flex justify-between items-start gap-4">
+                        <div class="min-w-0">
+                          <div class="flex items-center gap-2">
+                            <span class="font-extrabold text-white text-sm truncate max-w-[320px]">{{ item.name }}</span>
+                            <span class="px-1.5 py-0.5 rounded bg-neonRed/10 border border-neonRed/20 text-neonRed text-[9px] font-bold">{{ item.category }}</span>
+                          </div>
+                          <div class="text-[10px] text-textMuted mt-1">地址：{{ item.address }} | 建议脱敏坐标：{{ item.x }}, {{ item.y }}</div>
+                        </div>
+                        <div class="flex gap-2">
+                          <button @click="fillCrawlLeadToForm(item)" class="px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/25 active:scale-95 text-blue-400 border border-blue-500/35 rounded-lg text-xs font-bold transition-all">
+                            导入编辑
+                          </button>
+                          <button @click="approveAndPublishLead(item)" class="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/25 active:scale-95 text-emerald-400 border border-emerald-500/35 rounded-lg text-xs font-bold transition-all">
+                            一键上架
+                          </button>
+                        </div>
+                      </div>
+                      <p class="text-textMuted text-[11px] leading-relaxed bg-black/20 p-2.5 rounded-lg border border-white/5">{{ item.jieshao }}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- E. 市民城管随手拍列表 -->
+                <div v-if="activeAdminTab === 'citizen-reports'" class="space-y-2">
+                  <div v-if="citizenReports.length === 0" class="py-16 text-center text-xs text-textMuted border border-dashed border-glassBorder rounded-xl">
+                    <i class="fa-solid fa-clipboard-list text-2xl mb-2 text-glassBorder block"></i>
+                    暂无市民上报的城管投诉工单
+                  </div>
+                  <div v-else v-for="item in citizenReports" :key="item.id" @click="selectedCitizenReport = item"
+                       :class="selectedCitizenReport && selectedCitizenReport.id === item.id ? 'border-neonRed bg-neonRed/5' : 'border-glassBorder bg-black/40 hover:bg-white/5'"
+                       class="flex items-center justify-between p-4 rounded-xl border transition-all text-xs text-gray-300 gap-4 cursor-pointer">
+                    <div class="flex items-center gap-3 min-w-0 text-left">
+                      <div :class="item.status === 0 ? 'bg-red-500/20 text-red-400 border-red-500/30' : (item.status === 1 ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30')"
+                           class="w-10 h-10 rounded-lg border flex flex-col items-center justify-center font-extrabold flex-shrink-0">
+                        <i :class="item.status === 0 ? 'fa-solid fa-circle-exclamation' : (item.status === 1 ? 'fa-solid fa-clock-rotate-left' : 'fa-solid fa-circle-check')" class="text-sm"></i>
+                        <span class="text-[8px] mt-0.5">{{ item.status === 0 ? '待处' : (item.status === 1 ? '处理' : '解决') }}</span>
+                      </div>
+                      <div class="flex flex-col min-w-0">
+                        <div class="flex items-center gap-2">
+                          <span class="font-extrabold text-white text-sm">{{ item.issue_type }}</span>
+                          <span class="text-[10px] text-textMuted">{{ item.created_at.substring(0, 16).replace('T', ' ') }}</span>
+                        </div>
+                        <p class="text-textMuted text-xs mt-1 truncate max-w-[420px]">{{ item.description }}</p>
+                      </div>
+                    </div>
+                    
+                    <div class="flex gap-2 flex-shrink-0">
+                      <button @click.stop="locateReportOnMap(item)" class="px-3 py-1.5 bg-neonRed/10 hover:bg-neonRed/20 text-neonRed border border-neonRed/20 rounded-lg text-xs font-bold transition-all flex items-center gap-1">
+                        <i class="fa-solid fa-location-crosshairs"></i>地图定位
                       </button>
                     </div>
                   </div>

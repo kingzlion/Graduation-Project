@@ -26,3 +26,11 @@ spring:
     console:
       enabled: true
       path: /h2-console
+
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 20MB
+
+citizen:
+  upload-dir: uploads/citizen

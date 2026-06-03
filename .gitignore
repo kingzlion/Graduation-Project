@@ -1,6 +1,8 @@
 HELP.md
 target/
-!.mvn/wrapper/maven-wrapper.jar
+/data/
+.jdk/
+.m2/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
@@ -29,5 +31,27 @@ build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 
-### VS Code ###
 .vscode/
+
+### GIS & Large Document Ignores (To save context tokens for AI Agents) ###
+*.doc
+*.docx
+*.pdf
+*.tif
+*.tfw
+*.tfwx
+*.bin
+*.dat
+*.index
+*.ovr
+*.xml
+*.prj
+*.dbf
+*.sbn
+*.sbx
+*.shx
+gis-data/
+backend/data/
+node_modules/
+dist/
+target/

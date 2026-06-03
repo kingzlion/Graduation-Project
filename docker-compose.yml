@@ -1,0 +1,64 @@
+version: "3.8"
+
+services:
+  # ----------------------------------------------------
+  # 1. 核心关系型与空间数据库 PostgreSQL 16 + PostGIS 3.4
+  # ----------------------------------------------------
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: xiongan-gis-db
+    restart: always
+    environment:
+      POSTGRES_DB: xagis_db
+      POSTGRES_USER: gis_user
+      POSTGRES_PASSWORD: gis_secure_pwd_2026
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # ----------------------------------------------------
+  # 2. 后端 Spring Boot 业务与核心 WebGIS API 服务
+  # ----------------------------------------------------
+  backend:
+    image: openjdk:8-jdk-alpine
+    container_name: xiongan-gis-backend
+    restart: always
+    depends_on:
+      - db
+    ports:
+      - "8080:8080"
+    environment:
+      # 切换为生产环境 PostgreSQL/PostGIS 数据库配置
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/xagis_db
+      SPRING_DATASOURCE_USERNAME: gis_user
+      SPRING_DATASOURCE_PASSWORD: gis_secure_pwd_2026
+      SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.PostgreSQL95Dialect
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+    volumes:
+      - ./target/gis-0.0.1-SNAPSHOT.jar:/app/app.jar
+      - ./data:/app/data
+    entrypoint: ["java", "-jar", "/app/app.jar"]
+
+  # ----------------------------------------------------
+  # 3. 协同作业的 Python FastAPI AI Agent 集群微服务
+  # ----------------------------------------------------
+  agents:
+    build:
+      context: ./agents
+      dockerfile: Dockerfile
+    container_name: xiongan-gis-agents
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "8000:8000"
+    environment:
+      - BACKEND_API_BASE=http://backend:8080/api
+      - AMAP_API_KEY=YOUR_AMAP_WEB_SERVICE_KEY
+      - LLM_API_KEY=YOUR_LLM_API_KEY
+      - LLM_BASE_URL=https://api.deepseek.com/v1
+      - LLM_MODEL=deepseek-chat
+
+volumes:
+  postgres_data:
